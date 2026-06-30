@@ -33,6 +33,24 @@ function dedupeFiles(files) {
   return [...byPath.values()];
 }
 
+function buildImportMetadata(importMeta, finalFiles) {
+  if (!importMeta) return null;
+  return {
+    source: importMeta.source || "public_import",
+    repositoryFullName: importMeta.repositoryFullName || null,
+    defaultBranch: importMeta.defaultBranch || null,
+    importedFilesCount: Array.isArray(importMeta.importedFiles) ? importMeta.importedFiles.length : 0,
+    finalFilesCount: finalFiles.length,
+    attemptedFiles: Number(importMeta.attemptedFiles || 0),
+    skippedFiles: Number(importMeta.skippedFiles || 0),
+    truncatedTree: Boolean(importMeta.truncatedTree),
+    errors: Array.isArray(importMeta.errors) ? importMeta.errors.slice(0, 20) : [],
+    backendError: importMeta.backendError || null,
+    limits: importMeta.limits || PUBLIC_GITHUB_IMPORT_LIMITS,
+    importedAt: new Date().toISOString(),
+  };
+}
+
 async function importPublicGithubRepository(repositoryUrl) {
   try {
     const res = await base44.functions.invoke("importPublicGithubRepository", {
@@ -114,6 +132,7 @@ export default function AddRepository() {
         detected_stack: detectedStack,
         summary: fallbackSummary,
         description: importDescription,
+        import_metadata: buildImportMetadata(importMeta, files),
       });
 
       setImportStatus(`Saving ${files.length} file${files.length === 1 ? "" : "s"}…`);
