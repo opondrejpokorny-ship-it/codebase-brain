@@ -3,7 +3,9 @@ import { Send, AlertTriangle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { base44 } from "@/api/base44Client";
 import ReactMarkdown from "react-markdown";
-import { buildCodebaseQuestionPrompt } from "@/lib/codebaseUtils";
+import { buildCodeRelations } from "@/lib/codeGraphUtils";
+import { buildContextPack, formatContextPackForPrompt } from "@/lib/contextPackBuilder";
+import { formatEstimatedTokens } from "@/lib/tokenBudgetUtils";
 
 async function answerWithCoreLLM(projectId, question) {
   const [projects, files] = await Promise.all([
@@ -12,10 +14,15 @@ async function answerWithCoreLLM(projectId, question) {
   ]);
 
   const project = projects[0];
-  const prompt = buildCodebaseQuestionPrompt({ project, files, question });
-  const answer = await base44.integrations.Core.InvokeLLM({ prompt });
+  const relations = buildCodeRelations(files);
+  const contextPack = buildContextPack({ project, files, relations, question, maxTokens: 10000 });
+  const prompt = `You are Codebase Brain, an AI codebase analyst. Answer using only the compact context pack below.\n\nRules:\n- Be practical and specific.\n- Mention missing context when needed.\n- Do not claim tests were run.\n- Include file paths when useful.\n\nUser question:\n${question}\n\n${formatContextPackForPrompt(contextPack)}`;
 
-  return answer || "I could not generate a response from the available codebase context.";
+  const answer = await base44.integrations.Core.InvokeLLM({ prompt });
+  const efficiency = contextPack.efficiency;
+  const metadata = `\n\n---\n_Context used: ${efficiency.selectedFileCount}/${efficiency.totalFileCount} files · estimated ${formatEstimatedTokens(efficiency.selectedTokens)} tokens selected vs ${formatEstimatedTokens(efficiency.fullRepoTokens)} full-repo tokens · estimated ${efficiency.savingsPercent}% saved._`;
+
+  return `${answer || "I could not generate a response from the available codebase context."}${metadata}`;
 }
 
 export default function ChatBox({ projectId, messages, onNewMessage }) {
@@ -47,8 +54,6 @@ export default function ChatBox({ projectId, messages, onNewMessage }) {
         });
         answer = res.data?.answer || null;
       } catch {
-        // Phase 1 intentionally works without a deployed custom backend function.
-        // This keeps the MVP small and lets Base44's built-in LLM integration answer from stored context.
         answer = await answerWithCoreLLM(projectId, question);
       }
 
