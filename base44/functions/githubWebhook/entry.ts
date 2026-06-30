@@ -14,6 +14,14 @@ type DeliveryPersistenceResult = {
   record_id?: string | null;
 };
 
+type InstallationPersistenceResult = {
+  persisted: boolean;
+  reason?: string;
+  record_id?: string | null;
+  repositories_added?: number;
+  repositories_removed?: number;
+};
+
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -55,6 +63,10 @@ function processingEnabled(): boolean {
 
 function deliveryLoggingEnabled(): boolean {
   return processingEnabled() && envFlag("GITHUB_WEBHOOK_DELIVERY_LOGGING_ENABLED");
+}
+
+function installationLoggingEnabled(): boolean {
+  return processingEnabled() && envFlag("GITHUB_INSTALLATION_LOGGING_ENABLED");
 }
 
 function header(request: Request, name: string): string {
@@ -133,7 +145,7 @@ function classifyEvent(event: string, action: string | null): { status: string; 
     return { status: "ignored", reason: `unsupported pull_request action: ${action || "unknown"}` };
   }
 
-  return { status: "received", reason: "supported but processing is not implemented beyond delivery logging" };
+  return { status: "received", reason: "supported but processing is not implemented beyond safe logging" };
 }
 
 function buildDeliverySnapshot(request: Request, payload: JsonMap, status: string, reason: string): JsonMap {
@@ -157,6 +169,26 @@ function buildDeliverySnapshot(request: Request, payload: JsonMap, status: strin
   };
 }
 
+function buildInstallationSnapshot(payload: JsonMap): JsonMap | null {
+  const installation = payload?.installation;
+  if (!installation?.id) return null;
+
+  return {
+    installation_id: installation.id,
+    account_login: installation.account?.login || null,
+    account_type: installation.account?.type || null,
+    account_id: installation.account?.id || null,
+    repository_selection: installation.repository_selection || null,
+    app_id: installation.app_id || null,
+    app_slug: installation.app_slug || null,
+    permissions: installation.permissions || {},
+    events: installation.events || [],
+    status: payload?.action === "deleted" || payload?.action === "suspend" ? "inactive" : "active",
+    last_action: payload?.action || null,
+    updated_date: new Date().toISOString(),
+  };
+}
+
 async function parsePayload(rawBody: string): Promise<{ payload: JsonMap | null; error?: string }> {
   try {
     return { payload: JSON.parse(rawBody || "{}") };
@@ -165,14 +197,22 @@ async function parsePayload(rawBody: string): Promise<{ payload: JsonMap | null;
   }
 }
 
-function deliveryEntityApi(): any | null {
+function entityApi(entityName: string): any | null {
   try {
-    const candidate = (globalThis as any)?.base44?.entities?.GitHubWebhookDelivery;
+    const candidate = (globalThis as any)?.base44?.entities?.[entityName];
     if (candidate?.filter && candidate?.create && candidate?.update) return candidate;
     return null;
   } catch (_) {
     return null;
   }
+}
+
+function deliveryEntityApi(): any | null {
+  return entityApi("GitHubWebhookDelivery");
+}
+
+function installationEntityApi(): any | null {
+  return entityApi("GitHubInstallation");
 }
 
 async function persistDeliverySnapshot(delivery: JsonMap): Promise<DeliveryPersistenceResult> {
@@ -232,6 +272,73 @@ async function persistDeliverySnapshot(delivery: JsonMap): Promise<DeliveryPersi
   }
 }
 
+async function persistInstallationSnapshot(payload: JsonMap): Promise<InstallationPersistenceResult> {
+  const event = payload?.zen ? "ping" : null;
+  const action = payload?.action || null;
+  const isInstallationEvent = Boolean(payload?.installation?.id && (payload?.repositories_added || payload?.repositories_removed || action));
+
+  if (!installationLoggingEnabled()) {
+    return {
+      persisted: false,
+      reason: "GITHUB_INSTALLATION_LOGGING_ENABLED is disabled",
+    };
+  }
+
+  if (event === "ping" || !isInstallationEvent) {
+    return {
+      persisted: false,
+      reason: "not an installation metadata event",
+    };
+  }
+
+  const snapshot = buildInstallationSnapshot(payload);
+  if (!snapshot) {
+    return {
+      persisted: false,
+      reason: "missing installation.id",
+    };
+  }
+
+  const entity = installationEntityApi();
+  if (!entity) {
+    return {
+      persisted: false,
+      reason: "Base44 GitHubInstallation entity API is not available in this function runtime",
+    };
+  }
+
+  try {
+    const existing = await entity.filter({ installation_id: snapshot.installation_id });
+    if (Array.isArray(existing) && existing.length > 0) {
+      const record = existing[0];
+      const updated = await entity.update(record.id, snapshot);
+      return {
+        persisted: true,
+        record_id: updated?.id || record?.id || null,
+        repositories_added: Array.isArray(payload?.repositories_added) ? payload.repositories_added.length : 0,
+        repositories_removed: Array.isArray(payload?.repositories_removed) ? payload.repositories_removed.length : 0,
+      };
+    }
+
+    const created = await entity.create({
+      ...snapshot,
+      created_date: new Date().toISOString(),
+    });
+
+    return {
+      persisted: true,
+      record_id: created?.id || null,
+      repositories_added: Array.isArray(payload?.repositories_added) ? payload.repositories_added.length : 0,
+      repositories_removed: Array.isArray(payload?.repositories_removed) ? payload.repositories_removed.length : 0,
+    };
+  } catch (error) {
+    return {
+      persisted: false,
+      reason: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
 async function handleRequest(request: Request): Promise<Response> {
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
@@ -257,10 +364,15 @@ async function handleRequest(request: Request): Promise<Response> {
         duplicate: false,
         reason: "processing disabled",
       },
+      installation_persistence: {
+        persisted: false,
+        reason: "processing disabled",
+      },
       feature_flags: {
         GITHUB_APP_ENABLED: envFlag("GITHUB_APP_ENABLED"),
         GITHUB_WEBHOOK_PROCESSING_ENABLED: envFlag("GITHUB_WEBHOOK_PROCESSING_ENABLED"),
         GITHUB_WEBHOOK_DELIVERY_LOGGING_ENABLED: envFlag("GITHUB_WEBHOOK_DELIVERY_LOGGING_ENABLED"),
+        GITHUB_INSTALLATION_LOGGING_ENABLED: envFlag("GITHUB_INSTALLATION_LOGGING_ENABLED"),
         GITHUB_PRIVATE_IMPORT_ENABLED: envFlag("GITHUB_PRIVATE_IMPORT_ENABLED"),
         GITHUB_AUTO_ANALYZE_PRS: envFlag("GITHUB_AUTO_ANALYZE_PRS"),
         GITHUB_PR_POSTING_ENABLED: envFlag("GITHUB_PR_POSTING_ENABLED"),
@@ -284,6 +396,7 @@ async function handleRequest(request: Request): Promise<Response> {
   const classification = classifyEvent(event, action);
   const delivery = buildDeliverySnapshot(request, payload, classification.status, classification.reason);
   const persistence = await persistDeliverySnapshot(delivery);
+  const installationPersistence = await persistInstallationSnapshot(payload);
 
   if (persistence.duplicate) {
     return jsonResponse({
@@ -291,14 +404,15 @@ async function handleRequest(request: Request): Promise<Response> {
       reason: "duplicate delivery ignored",
       delivery,
       persistence,
+      installation_persistence: installationPersistence,
       writes_enabled: false,
       analysis_started: false,
     });
   }
 
-  // TODO Phase 10:
+  // TODO Phase 13:
   // - provide a confirmed Base44 entity API binding if the runtime does not expose globalThis.base44
-  // - store installation metadata
+  // - store GitHubRepositoryLink metadata from installation_repositories events
   // - for pull_request events, enqueue internal analysis only when GITHUB_AUTO_ANALYZE_PRS=true
   // - never write to GitHub unless GITHUB_PR_POSTING_ENABLED=true and a user-approved posting flow exists
 
@@ -307,6 +421,7 @@ async function handleRequest(request: Request): Promise<Response> {
     reason: classification.reason,
     delivery,
     persistence,
+    installation_persistence: installationPersistence,
     writes_enabled: false,
     analysis_started: false,
   });
