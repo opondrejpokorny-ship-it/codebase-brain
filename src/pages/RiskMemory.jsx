@@ -1,91 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, BarChart3, FileWarning, GitBranch, History, Loader2, ShieldAlert, TestTube2 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { base44 } from "@/api/base44Client";
+import RiskMemoryCountList from "@/components/projects/risk-memory/RiskMemoryCountList";
 import RiskMemoryRecentAnalyses from "@/components/projects/risk-memory/RiskMemoryRecentAnalyses";
-import {
-  buildRiskMemory,
-  mergeAnalysisHistories,
-  readLocalAnalysisHistory,
-} from "@/lib/analysisHistoryUtils";
-
-function optionalEntity(entityName) {
-  try {
-    const entity = base44?.entities?.[entityName];
-    return entity || null;
-  } catch {
-    return null;
-  }
-}
-
-function CountList({ title, icon: Icon, items, emptyText }) {
-  return (
-    <div className="bg-white rounded-xl border border-slate-200 p-5">
-      <h2 className="font-heading font-semibold text-sm text-slate-900 mb-3 flex items-center gap-2">
-        <Icon className="w-4 h-4 text-slate-500" />
-        {title}
-      </h2>
-      {items.length ? (
-        <div className="space-y-2">
-          {items.map((item) => (
-            <div key={item.name} className="flex items-start justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2">
-              <p className="text-xs font-mono text-slate-700 break-all">{item.name}</p>
-              <Badge variant="outline" className="bg-white text-slate-600 border-slate-200 flex-shrink-0">
-                {item.count}×
-              </Badge>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="text-sm text-slate-400">{emptyText}</p>
-      )}
-    </div>
-  );
-}
+import { useRiskMemory } from "@/hooks/useRiskMemory";
 
 export default function RiskMemory() {
   const { id } = useParams();
-  const [project, setProject] = useState(null);
-  const [analyses, setAnalyses] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [historySource, setHistorySource] = useState("local fallback");
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadRiskMemory() {
-      setLoading(true);
-      try {
-        const [projects] = await Promise.all([
-          base44.entities.CodebaseProject.filter({ id }).catch(() => []),
-        ]);
-
-        const analysisEntity = optionalEntity("CodebaseAnalysis");
-        const remoteAnalyses = analysisEntity?.filter
-          ? await analysisEntity.filter({ project_id: id }, "created_date", 80).catch(() => [])
-          : [];
-        const localAnalyses = readLocalAnalysisHistory(id);
-        const merged = mergeAnalysisHistories(remoteAnalyses || [], localAnalyses || []);
-
-        if (!cancelled) {
-          setProject(projects?.[0] || null);
-          setAnalyses(merged);
-          setHistorySource(remoteAnalyses?.length ? "Base44 + local fallback" : "local fallback");
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    loadRiskMemory();
-    return () => {
-      cancelled = true;
-    };
-  }, [id]);
-
-  const memory = useMemo(() => buildRiskMemory(analyses), [analyses]);
+  const { project, analyses, memory, loading, historySource } = useRiskMemory(id);
 
   if (loading) {
     return (
@@ -161,10 +83,10 @@ export default function RiskMemory() {
           </div>
 
           <div className="grid lg:grid-cols-2 gap-4">
-            <CountList title="High-risk files" icon={FileWarning} items={memory.highRiskFiles} emptyText="No file has appeared in a high-risk analysis yet." />
-            <CountList title="Frequently changed files" icon={GitBranch} items={memory.frequentlyChangedFiles} emptyText="No changed-file history yet." />
-            <CountList title="Repeated risk signals" icon={BarChart3} items={memory.repeatedRiskSignals} emptyText="No repeated risk signals yet." />
-            <CountList title="Common recommended tests" icon={TestTube2} items={memory.commonRecommendedTests} emptyText="No recommended tests have been captured yet." />
+            <RiskMemoryCountList title="High-risk files" icon={FileWarning} items={memory.highRiskFiles} emptyText="No file has appeared in a high-risk analysis yet." />
+            <RiskMemoryCountList title="Frequently changed files" icon={GitBranch} items={memory.frequentlyChangedFiles} emptyText="No changed-file history yet." />
+            <RiskMemoryCountList title="Repeated risk signals" icon={BarChart3} items={memory.repeatedRiskSignals} emptyText="No repeated risk signals yet." />
+            <RiskMemoryCountList title="Common recommended tests" icon={TestTube2} items={memory.commonRecommendedTests} emptyText="No recommended tests have been captured yet." />
           </div>
 
           <RiskMemoryRecentAnalyses analyses={analyses} />
