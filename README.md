@@ -19,7 +19,8 @@ A user can:
 9. ask questions about the stored codebase context,
 10. paste a public GitHub PR URL, diff, or changed file list for impact analysis,
 11. see whether the PR repository matches the imported project repository,
-12. follow documented GitHub App permissions, webhook, and safety plans before private repo access is implemented.
+12. follow documented GitHub App permissions, webhook, and safety plans before private repo access is implemented,
+13. deploy a disabled GitHub webhook receiver skeleton with no side effects.
 
 ## What is included now
 
@@ -39,6 +40,7 @@ A user can:
 - GitHub App planning docs
 - GitHub App review safety contract
 - GitHub webhook contract
+- Disabled GitHub webhook receiver skeleton
 - AI project summary through Base44 `Core.InvokeLLM`
 - AI chat over stored context with a safe phase-1 fallback
 - Documentation for next phases
@@ -115,6 +117,23 @@ pull_request
 
 The safety contract explicitly prevents automatic merges, approvals, commits, workflow edits, repository setting changes, and PR comments without a later explicit opt-in flow.
 
+## Webhook receiver skeleton
+
+A disabled-by-default Base44 function now exists:
+
+```txt
+base44/functions/githubWebhook/entry.ts
+```
+
+By default it returns `200 ignored` while these flags are false:
+
+```txt
+GITHUB_APP_ENABLED=false
+GITHUB_WEBHOOK_PROCESSING_ENABLED=false
+```
+
+When enabled, it verifies `X-Hub-Signature-256`, classifies supported events, and still performs no GitHub writes or PR analysis until later phases.
+
 ## Public GitHub PR fetch limits
 
 - public PRs only,
@@ -126,8 +145,8 @@ The safety contract explicitly prevents automatic merges, approvals, commits, wo
 ## What is intentionally not included yet
 
 - private repository import
-- GitHub App implementation
-- PR webhooks implementation
+- active GitHub App processing
+- PR webhook persistence
 - PR comments
 - CI/check inspection
 - billing
@@ -208,15 +227,17 @@ VITE_BASE44_APP_BASE_URL=https://your-app.base44.app
 - `docs/phase-6-public-pr-fetch.md`
 - `docs/phase-7-repository-compatibility.md`
 - `docs/phase-8-github-app-plan.md`
+- `docs/phase-9-webhook-skeleton.md`
 - `docs/github-app-review-safety-contract.md`
 - `docs/github-webhook-contract.md`
 - `docs/architecture.md`
 
 ## Next phases
 
-1. Implement webhook receiver skeleton behind disabled feature flags.
-2. GitHub App + private repo import + automated internal PR analysis.
-3. MCP server for Codex/Cursor/Claude Code.
+1. Add persistence-only webhook delivery logging and deduplication.
+2. Store GitHub installation metadata.
+3. GitHub App + private repo import + automated internal PR analysis.
+4. MCP server for Codex/Cursor/Claude Code.
 
 ## Base44 docs
 
