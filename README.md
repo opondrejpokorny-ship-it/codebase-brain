@@ -22,8 +22,9 @@ A user can:
 12. follow documented GitHub App permissions, webhook, and safety plans before private repo access is implemented,
 13. deploy a disabled GitHub webhook receiver skeleton with no side effects,
 14. optionally log webhook deliveries and dedupe them if the Base44 entity API is available in the function runtime,
-15. run a safe Base44 runtime diagnostics endpoint that reports capability presence without exposing secrets,
-16. run diagnostics from the app UI at `/diagnostics`.
+15. optionally store GitHub installation metadata if the Base44 entity API is available,
+16. run a safe Base44 runtime diagnostics endpoint that reports capability presence without exposing secrets,
+17. run diagnostics from the app UI at `/diagnostics`.
 
 ## What is included now
 
@@ -45,6 +46,7 @@ A user can:
 - GitHub webhook contract
 - Disabled GitHub webhook receiver skeleton
 - Optional webhook delivery logging adapter
+- Optional GitHub installation metadata adapter
 - Base44 runtime diagnostics function
 - Runtime Diagnostics UI
 - AI project summary through Base44 `Core.InvokeLLM`
@@ -156,6 +158,22 @@ globalThis.base44.entities.GitHubWebhookDelivery
 
 If available, it persists delivery snapshots and ignores duplicates by `delivery_id`. If unavailable, it returns `persisted:false` instead of crashing.
 
+## GitHub installation metadata logging
+
+Optional installation logging is guarded by:
+
+```txt
+GITHUB_INSTALLATION_LOGGING_ENABLED=false
+```
+
+When enabled together with webhook processing, the webhook attempts to use:
+
+```txt
+globalThis.base44.entities.GitHubInstallation
+```
+
+It stores installation/account metadata from `installation` and `installation_repositories` events only. It does not create installation access tokens, import private code, or call GitHub APIs.
+
 ## Base44 runtime diagnostics
 
 A safe diagnostics endpoint exists:
@@ -172,7 +190,7 @@ A frontend diagnostics page also exists:
 /diagnostics
 ```
 
-Use it after deploying Base44 functions to verify `GitHubWebhookDelivery` before enabling delivery logging.
+Use it after deploying Base44 functions to verify `GitHubWebhookDelivery` and `GitHubInstallation` before enabling webhook/installation logging.
 
 ## Public GitHub PR fetch limits
 
@@ -186,7 +204,8 @@ Use it after deploying Base44 functions to verify `GitHubWebhookDelivery` before
 
 - private repository import
 - confirmed Base44 backend entity binding in deployed runtime
-- installation metadata persistence
+- installation access token creation
+- repository link metadata persistence
 - automatic PR analysis from webhooks
 - PR comments
 - CI/check inspection
@@ -272,6 +291,7 @@ VITE_BASE44_APP_BASE_URL=https://your-app.base44.app
 - `docs/phase-9b-webhook-delivery-logging.md`
 - `docs/phase-10-base44-runtime-diagnostics.md`
 - `docs/phase-11-runtime-diagnostics-ui.md`
+- `docs/phase-12-installation-metadata-skeleton.md`
 - `docs/github-app-review-safety-contract.md`
 - `docs/github-webhook-contract.md`
 - `docs/architecture.md`
@@ -280,7 +300,7 @@ VITE_BASE44_APP_BASE_URL=https://your-app.base44.app
 
 1. Run diagnostics in deployed Base44 runtime and confirm the entity API.
 2. If needed, replace the webhook persistence adapter with the official server-side Base44 entity API.
-3. Store GitHub installation metadata.
+3. Add repository link metadata skeleton for `installation_repositories` events.
 4. GitHub App + private repo import + automated internal PR analysis.
 5. MCP server for Codex/Cursor/Claude Code.
 
