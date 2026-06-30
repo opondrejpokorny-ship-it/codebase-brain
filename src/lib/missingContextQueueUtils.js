@@ -65,3 +65,21 @@ export function addMissingContextQueueItems(projectId, items = []) {
 export function formatMissingContextQueue(queue = []) {
   return queue.map((item) => item.target).filter(Boolean).join("\n");
 }
+
+export function formatMissingContextImportPrompt({ projectName = "this project", repositoryUrl = "", queue = [] } = {}) {
+  const targets = formatMissingContextQueue(queue);
+  return `Import or re-index these missing context targets for ${projectName}.
+
+Repository: ${repositoryUrl || "not provided"}
+
+Targets:
+${targets || "None"}
+
+Instructions:
+- Prefer exact repository files matching these extensionless targets.
+- Resolve common extensions: .js, .jsx, .ts, .tsx.
+- Also check index files under matching folders.
+- Add the resolved files to the stored project context.
+- Rebuild code graph relations after import.
+- Do not import the whole repository unless explicitly requested.`;
+}
