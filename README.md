@@ -10,21 +10,22 @@ A user can:
 
 1. create a codebase project,
 2. add a public GitHub repository URL and import a small safe sample,
-3. or paste a small code sample manually,
-4. store parsed file records,
-5. detect a rough technology stack,
-6. generate a short project summary,
-7. view import metadata and warnings,
-8. view lightweight import/require relationships,
-9. ask questions about the stored codebase context,
-10. paste a public GitHub PR URL, diff, or changed file list for impact analysis,
-11. see whether the PR repository matches the imported project repository,
-12. follow documented GitHub App permissions, webhook, and safety plans before private repo access is implemented,
-13. deploy a disabled GitHub webhook receiver skeleton with no side effects,
-14. optionally log webhook deliveries and dedupe them if the Base44 entity API is available in the function runtime,
-15. optionally store GitHub installation metadata if the Base44 entity API is available,
-16. run a safe Base44 runtime diagnostics endpoint that reports capability presence without exposing secrets,
-17. run diagnostics from the app UI at `/diagnostics`.
+3. or save a private/inaccessible repository URL as URL-only until GitHub App access is enabled,
+4. or paste a small code sample manually,
+5. store parsed file records,
+6. detect a rough technology stack,
+7. generate a short project summary,
+8. view import metadata and warnings,
+9. view lightweight import/require relationships,
+10. ask questions about the stored codebase context,
+11. paste a public GitHub PR URL, diff, or changed file list for impact analysis,
+12. see whether the PR repository matches the imported project repository,
+13. follow documented GitHub App permissions, webhook, and safety plans before private repo access is implemented,
+14. deploy a disabled GitHub webhook receiver skeleton with no side effects,
+15. optionally log webhook deliveries and dedupe them if the Base44 entity API is available in the function runtime,
+16. optionally store GitHub installation metadata if the Base44 entity API is available,
+17. run a safe Base44 runtime diagnostics endpoint that reports capability presence without exposing secrets,
+18. run diagnostics from the app UI at `/diagnostics`.
 
 ## What is included now
 
@@ -35,6 +36,7 @@ A user can:
 - Basic stack detection
 - Pasted-code parser
 - Lightweight public GitHub import with strict limits
+- Private/inaccessible repository URL-only fallback
 - Backend-first public import with browser fallback
 - Import metadata card on project detail
 - Code Graph Lite import/require relations
@@ -64,6 +66,19 @@ The current import is intentionally small and backend-first:
 - skips `node_modules`, `dist`, `build`, generated folders, lock files, binaries, media, and real `.env` files.
 
 This is enough to test product value without building a GitHub App or backend queue yet.
+
+## Private repository fallback
+
+Private or inaccessible repositories are saved as URL-only projects instead of failing project creation.
+
+When public import returns a likely access error such as `404`, `403`, `not found`, or authentication/rate-limit failure:
+
+- the project is still created,
+- no files are imported,
+- project status is set to `url_only`,
+- import metadata stores the failure reason,
+- the user can paste code manually,
+- full private import remains reserved for GitHub App/private access.
 
 ## Code Graph Lite
 
@@ -202,7 +217,7 @@ Use it after deploying Base44 functions to verify `GitHubWebhookDelivery` and `G
 
 ## What is intentionally not included yet
 
-- private repository import
+- private repository file import
 - confirmed Base44 backend entity binding in deployed runtime
 - installation access token creation
 - repository link metadata persistence
@@ -292,6 +307,7 @@ VITE_BASE44_APP_BASE_URL=https://your-app.base44.app
 - `docs/phase-10-base44-runtime-diagnostics.md`
 - `docs/phase-11-runtime-diagnostics-ui.md`
 - `docs/phase-12-installation-metadata-skeleton.md`
+- `docs/phase-13-private-repo-url-only-fallback.md`
 - `docs/github-app-review-safety-contract.md`
 - `docs/github-webhook-contract.md`
 - `docs/architecture.md`
