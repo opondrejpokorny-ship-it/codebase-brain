@@ -20,6 +20,7 @@ import {
 } from "@/lib/impactAnalysisUtils";
 import {
   createAnalysisHistoryRecord,
+  formatRiskMemoryForPrompt,
   mergeAnalysisHistories,
   readLocalAnalysisHistory,
   writeLocalAnalysisRecord,
@@ -187,7 +188,11 @@ export default function ImpactAnalysis() {
     setRiskLevel(null);
 
     try {
-      const payload = buildImpactAnalysisPrompt({ project, files, changeInput });
+      const preChangedFiles = extractChangedFiles(changeInput);
+      const preSignals = heuristicRiskSignals(changeInput, preChangedFiles);
+      const preRelatedPaths = relatedPathsForChangedFiles(codeRelations, preChangedFiles);
+      const riskMemoryText = formatRiskMemoryForPrompt(analyses, preChangedFiles, preRelatedPaths, preSignals);
+      const payload = buildImpactAnalysisPrompt({ project, files, changeInput, relations: codeRelations, riskMemoryText });
       const answer = await base44.integrations.Core.InvokeLLM({ prompt: payload.prompt });
       const finalAnswer = answer || "No analysis was generated.";
       const parsedRisk = extractRiskLevelFromAnalysis(finalAnswer, payload.heuristicRisk);
