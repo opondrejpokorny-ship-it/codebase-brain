@@ -1,5 +1,5 @@
 {
-  "name": "untitled",
+  "name": "codebase-brain",
   "site": {
     "installCommand": "npm install",
     "buildCommand": "npm run build",
