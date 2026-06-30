@@ -19,15 +19,20 @@ Client utilities
   ├─ detectStackFromFiles()
   ├─ createFallbackSummary()
   ├─ buildCodebaseQuestionPrompt()
-  └─ importPublicGithubRepository()
+  └─ client fallback importPublicGithubRepository()
+
+Base44 backend functions
+  └─ importPublicGithubRepository
 
 Public GitHub import
+  ├─ frontend tries backend function first
+  ├─ browser/client fallback keeps MVP usable before deploy
   ├─ parse GitHub URL
   ├─ fetch public repo metadata
   ├─ fetch recursive default-branch tree
   ├─ select safe text file candidates
   ├─ download raw file content
-  └─ store CodeFile records
+  └─ frontend stores CodeFile records
 
 AI layer
   ├─ Base44 Core.InvokeLLM for summary
@@ -46,7 +51,9 @@ User enters public GitHub URL
   ↓
 AddRepository
   ↓
-importPublicGithubRepository(repositoryUrl)
+base44.functions.invoke("importPublicGithubRepository")
+  ↓ if backend unavailable
+client import fallback
   ↓
 GitHub public API: repo metadata + recursive tree
   ↓
@@ -89,18 +96,19 @@ Store assistant message
 - Max 3,000 tree entries inspected.
 - Generated/dependency/build folders skipped.
 - Lock files skipped.
+- Real `.env` files skipped, except safe examples/templates.
 - Binary/media files skipped.
 - Only one lightweight LLM summary call on project creation.
 - Chat sends only selected relevant files, not the whole project.
 
 ## Future architecture phases
 
-### Phase 3: Backend import function
+### Phase 3: Import result panel and backend hardening
 
-- Move GitHub import from browser into a Base44 backend function.
-- Add better rate-limit handling.
-- Allow optional GitHub token later.
-- Save import progress.
+- Show imported count, skipped count, default branch, source backend/client, and file errors.
+- Add better rate-limit messaging.
+- Add optional GitHub token through server secrets.
+- Save import progress if Base44 supports long-running status updates.
 
 ### Phase 4: PR impact analysis
 
