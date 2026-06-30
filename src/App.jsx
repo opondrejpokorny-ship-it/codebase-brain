@@ -19,6 +19,7 @@ import ImpactAnalysisWithEfficiency from '@/pages/ImpactAnalysisWithEfficiency';
 import ImpactLauncher from '@/pages/ImpactLauncher';
 import RiskMemory from '@/pages/RiskMemory';
 import ProjectRules from '@/pages/ProjectRules';
+import MissingContextImportQueue from '@/pages/MissingContextImportQueue';
 import CodeSearch from '@/pages/CodeSearch';
 import ArchitectureOverview from '@/pages/ArchitectureOverview';
 import RuntimeDiagnostics from '@/pages/RuntimeDiagnostics';
@@ -62,6 +63,7 @@ const AuthenticatedApp = () => {
           <Route path="/project/:id/search" element={<CodeSearch />} />
           <Route path="/project/:id/architecture" element={<ArchitectureOverview />} />
           <Route path="/project/:id/impact" element={<ImpactAnalysisWithEfficiency />} />
+          <Route path="/project/:id/import-queue" element={<MissingContextImportQueue />} />
           <Route path="/project/:id/risk-memory" element={<RiskMemory />} />
           <Route path="/project/:id/rules" element={<ProjectRules />} />
         </Route>
