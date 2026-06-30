@@ -31,16 +31,16 @@ const compatibilityStyles = {
   unknown: "bg-amber-50 text-amber-700 border-amber-200",
 };
 
-const exampleDiff = `diff --git a/src/api/payments.js b/src/api/payments.js
---- a/src/api/payments.js
-+++ b/src/api/payments.js
+const exampleDiff = `diff --git a/src/lib/contextPackBuilder.js b/src/lib/contextPackBuilder.js
+--- a/src/lib/contextPackBuilder.js
++++ b/src/lib/contextPackBuilder.js
 @@ -1,5 +1,8 @@
- export async function createPayment(input) {
-+  if (!input.userId) throw new Error("Missing user");
-   // changed payment flow here
+ export function buildContextPack(input) {
++  // prefer graph-confirmed related files before keyword matches
+   return selectCompactContext(input);
  }
 
-src/pages/Checkout.jsx`;
+src/pages/ImpactAnalysis.jsx`;
 
 function optionalEntity(entityName) {
   try {
