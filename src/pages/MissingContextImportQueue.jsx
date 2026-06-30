@@ -8,7 +8,7 @@ import {
   clearMissingContextQueue,
   formatMissingContextImportPrompt,
   formatMissingContextQueue,
-  readMissingContextQueue,
+  readBestMissingContextQueue,
 } from "@/lib/missingContextQueueUtils";
 
 function ChecklistItem({ children }) {
@@ -37,7 +37,7 @@ export default function MissingContextImportQueue() {
         const projects = await base44.entities.CodebaseProject.filter({ id }).catch(() => []);
         if (!cancelled) {
           setProject(projects?.[0] || null);
-          setQueue(readMissingContextQueue(id));
+          setQueue(readBestMissingContextQueue(id));
         }
       } finally {
         if (!cancelled) setLoading(false);
