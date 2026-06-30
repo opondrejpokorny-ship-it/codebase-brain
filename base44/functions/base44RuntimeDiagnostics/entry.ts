@@ -17,6 +17,7 @@ const ENV_KEYS = [
   "GITHUB_APP_ENABLED",
   "GITHUB_WEBHOOK_PROCESSING_ENABLED",
   "GITHUB_WEBHOOK_DELIVERY_LOGGING_ENABLED",
+  "GITHUB_INSTALLATION_LOGGING_ENABLED",
   "GITHUB_PRIVATE_IMPORT_ENABLED",
   "GITHUB_AUTO_ANALYZE_PRS",
   "GITHUB_PR_POSTING_ENABLED",
@@ -109,8 +110,15 @@ function inspectEntityApis(base44: any): JsonMap {
   return result;
 }
 
+function readyForEntityWrites(entityInfo: JsonMap | undefined): boolean {
+  return Boolean(entityInfo?.present && entityInfo?.methods?.filter && entityInfo?.methods?.create && entityInfo?.methods?.update);
+}
+
 function inspectRuntime(): JsonMap {
   const base44 = getBase44Candidate();
+  const entityInspection = inspectEntityApis(base44);
+  const expected = entityInspection.expected_entities || {};
+
   return {
     timestamp: new Date().toISOString(),
     runtime: {
@@ -119,16 +127,23 @@ function inspectRuntime(): JsonMap {
       fetch_present: typeof fetch === "function",
     },
     env_presence: Object.fromEntries(ENV_KEYS.map((key) => [key, maskEnvPresence(key)])),
+    readiness: {
+      webhook_delivery_logging_ready: readyForEntityWrites(expected.GitHubWebhookDelivery),
+      installation_logging_ready: readyForEntityWrites(expected.GitHubInstallation),
+      repository_link_logging_ready: readyForEntityWrites(expected.GitHubRepositoryLink),
+      pull_request_analysis_ready: readyForEntityWrites(expected.PullRequestAnalysis),
+    },
     base44: {
       global_present: Boolean(base44),
       keys: base44 && typeof base44 === "object" ? Object.keys(base44).slice(0, 50) : [],
       functions_present: Boolean(base44?.functions),
       integrations_present: Boolean(base44?.integrations),
-      entities: inspectEntityApis(base44),
+      entities: entityInspection,
     },
     notes: [
       "This endpoint reports capability presence only and never returns secret values.",
       "If globalThis.base44.entities.GitHubWebhookDelivery is not present, webhook delivery persistence must use a different official Base44 server-side entity API.",
+      "If GitHubInstallation is not present, installation metadata persistence remains disabled even when the feature flag is enabled.",
     ],
   };
 }
