@@ -4,8 +4,12 @@ import { ArrowLeft, Check, ClipboardCopy, DownloadCloud, FileDiff, Loader2, Pack
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { base44 } from "@/api/base44Client";
-import { detectLanguageFromPath } from "@/lib/codebaseUtils";
 import { persistCodeRelationsIfAvailable } from "@/lib/codeRelationPersistence";
+import {
+  queueItemForStorage,
+  resolveQueuedFilesFromPublicGitHub,
+  resolveQueuedTarget,
+} from "@/lib/focusedGithubResolve";
 import {
   clearMissingContextQueue,
   formatMissingContextImportPrompt,
@@ -13,9 +17,6 @@ import {
   readBestMissingContextQueue,
   writeMissingContextQueue,
 } from "@/lib/missingContextQueueUtils";
-
-const EXTENSIONS = [".js", ".jsx", ".ts", ".tsx"];
-const MAX_IMPORTED_FILE_BYTES = 35_000;
 
 function ChecklistItem({ children }) {
   return (
@@ -26,112 +27,9 @@ function ChecklistItem({ children }) {
   );
 }
 
-function candidatePathsForTarget(target = "") {
-  const clean = String(target || "").replace(/^\/+/, "");
-  if (!clean) return [];
-
-  const candidates = new Set([clean]);
-  for (const ext of EXTENSIONS) {
-    candidates.add(`${clean}${ext}`);
-    candidates.add(`${clean}/index${ext}`);
-  }
-  return [...candidates];
-}
-
-function resolveQueuedTarget(item, storedPathSet) {
-  const candidates = candidatePathsForTarget(item?.target || "");
-  const matchedPath = candidates.find((path) => storedPathSet.has(path));
-  return {
-    ...item,
-    candidates,
-    matchedPath,
-    status: matchedPath ? "indexed" : "missing",
-  };
-}
-
-function queueItemForStorage(item) {
-  return {
-    target: item.target,
-    source_file: item.source_file,
-    import_path: item.import_path,
-    relation_type: item.relation_type,
-    added_at: item.added_at,
-  };
-}
-
 function statusBadgeClass(status) {
   if (status === "indexed") return "bg-emerald-50 text-emerald-700 border-emerald-200";
   return "bg-amber-50 text-amber-700 border-amber-200";
-}
-
-function parseGitHubRepoUrl(url = "") {
-  const match = String(url || "").trim().match(/^https?:\/\/github\.com\/([^/\s]+)\/([^/\s#?]+)(?:[\s/#?].*)?$/i);
-  if (!match) return null;
-  return {
-    owner: match[1],
-    repo: match[2].replace(/\.git$/i, ""),
-  };
-}
-
-async function fetchGitHubJson(url) {
-  const response = await fetch(url, { headers: { Accept: "application/vnd.github+json" } });
-  if (!response.ok) throw new Error(`GitHub request failed: ${response.status}`);
-  return response.json();
-}
-
-async function fetchRawGitHubFile({ owner, repo, branch, path }) {
-  const encodedPath = path.split("/").map(encodeURIComponent).join("/");
-  const url = `https://raw.githubusercontent.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${encodeURIComponent(branch)}/${encodedPath}`;
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`Raw file request failed for ${path}: ${response.status}`);
-  const text = await response.text();
-  return text.slice(0, MAX_IMPORTED_FILE_BYTES);
-}
-
-async function resolveQueuedFilesFromPublicGitHub({ project, projectId, resolvedQueue, storedPathSet }) {
-  const parsed = parseGitHubRepoUrl(project?.repository_url || "");
-  if (!parsed) throw new Error("Project does not have a valid public GitHub repository URL.");
-
-  const { owner, repo } = parsed;
-  const repoMeta = await fetchGitHubJson(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`);
-  const branch = repoMeta.default_branch || "main";
-  const treeResult = await fetchGitHubJson(
-    `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/trees/${encodeURIComponent(branch)}?recursive=1`
-  );
-
-  const treePaths = new Set((treeResult.tree || []).filter((entry) => entry.type === "blob").map((entry) => entry.path));
-  const filesToCreate = [];
-  const misses = [];
-
-  for (const item of resolvedQueue) {
-    if (item.status === "indexed") continue;
-    const exactPath = item.candidates.find((candidate) => treePaths.has(candidate) && !storedPathSet.has(candidate));
-    if (!exactPath) {
-      misses.push({ target: item.target, reason: "No matching repository file found." });
-      continue;
-    }
-
-    const content = await fetchRawGitHubFile({ owner, repo, branch, path: exactPath });
-    filesToCreate.push({
-      project_id: projectId,
-      path: exactPath,
-      language: detectLanguageFromPath(exactPath),
-      content,
-      size: content.length,
-    });
-  }
-
-  const createdFiles = [];
-  for (const file of filesToCreate) {
-    const created = await base44.entities.CodeFile.create(file);
-    createdFiles.push(created || file);
-  }
-
-  return {
-    createdFiles,
-    misses,
-    branch,
-  };
 }
 
 export default function MissingContextImportQueue() {
@@ -213,17 +111,23 @@ export default function MissingContextImportQueue() {
 
     try {
       const result = await resolveQueuedFilesFromPublicGitHub({
-        project,
+        repositoryUrl: project?.repository_url || "",
         projectId: id,
         resolvedQueue,
         storedPathSet,
       });
 
-      const nextFiles = [...files, ...result.createdFiles];
+      const createdFiles = [];
+      for (const file of result.filesToCreate) {
+        const created = await base44.entities.CodeFile.create(file);
+        createdFiles.push(created || file);
+      }
+
+      const nextFiles = [...files, ...createdFiles];
       setFiles(nextFiles);
 
       try {
-        if (result.createdFiles.length > 0) {
+        if (createdFiles.length > 0) {
           await persistCodeRelationsIfAvailable({ projectId: id, files: nextFiles });
           await base44.entities.CodebaseProject.update(id, { status: "indexed" }).catch(() => null);
         }
@@ -232,7 +136,7 @@ export default function MissingContextImportQueue() {
       }
 
       const missSuffix = result.misses.length ? ` ${result.misses.length} target${result.misses.length === 1 ? "" : "s"} still not found.` : "";
-      setResolveMessage(`Imported ${result.createdFiles.length} file${result.createdFiles.length === 1 ? "" : "s"} from ${result.branch}.${missSuffix}`);
+      setResolveMessage(`Imported ${createdFiles.length} file${createdFiles.length === 1 ? "" : "s"} from ${result.branch}.${missSuffix}`);
     } catch (error) {
       setResolveError(error?.message || "Failed to resolve queued targets from public GitHub.");
       setResolveMessage("");
