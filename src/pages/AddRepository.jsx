@@ -8,53 +8,20 @@ import { Label } from "@/components/ui/label";
 import { base44 } from "@/api/base44Client";
 import { useToast } from "@/components/ui/use-toast";
 import { Link } from "react-router-dom";
+import {
+  createFallbackSummary,
+  detectStackFromFiles,
+  extractProjectName,
+  parsePastedCode,
+} from "@/lib/codebaseUtils";
 
-function extractProjectName(url) {
-  if (!url) return "";
-  const parts = url.replace(/\.git$/, "").split("/");
-  return parts[parts.length - 1] || "";
-}
+function buildSummaryPrompt({ name, repoUrl, files, detectedStack, fallbackSummary }) {
+  const filePreview = files
+    .slice(0, 6)
+    .map((file) => `--- ${file.path} ---\n${file.content.slice(0, 1200)}`)
+    .join("\n\n");
 
-function detectStackFromCode(code) {
-  const stack = [];
-  if (/import\s+.*react|from\s+['"]react/i.test(code)) stack.push("React");
-  if (/from\s+['"]next/i.test(code) || /next\.config/i.test(code)) stack.push("Next.js");
-  if (/from\s+['"]vue/i.test(code)) stack.push("Vue");
-  if (/from\s+['"]express/i.test(code)) stack.push("Express");
-  if (/import\s+.*django|from\s+django/i.test(code)) stack.push("Django");
-  if (/package\.json/i.test(code)) stack.push("Node.js");
-  if (/\.py\b/i.test(code) || /def\s+\w+\s*\(|import\s+\w+/m.test(code)) stack.push("Python");
-  if (/\.tsx?\b/i.test(code) || /: string|: number|interface\s+/i.test(code)) stack.push("TypeScript");
-  if (/tailwind/i.test(code)) stack.push("Tailwind CSS");
-  if (/prisma/i.test(code)) stack.push("Prisma");
-  if (/docker/i.test(code)) stack.push("Docker");
-  return [...new Set(stack)];
-}
-
-function parseFileSections(code) {
-  const fileRegex = /^(?:\/\/|#|\/\*)\s*(?:file|path|filename):\s*(.+?)(?:\s*\*\/)?$/gim;
-  const files = [];
-  let match;
-  const matches = [];
-
-  while ((match = fileRegex.exec(code)) !== null) {
-    matches.push({ path: match[1].trim(), index: match.index });
-  }
-
-  if (matches.length === 0) {
-    return [{ path: "main.txt", content: code, language: "text" }];
-  }
-
-  for (let i = 0; i < matches.length; i++) {
-    const start = matches[i].index + code.substring(matches[i].index).indexOf("\n") + 1;
-    const end = i + 1 < matches.length ? matches[i + 1].index : code.length;
-    const content = code.substring(start, end).trim();
-    const ext = matches[i].path.split(".").pop() || "txt";
-    const langMap = { js: "JavaScript", jsx: "JavaScript", ts: "TypeScript", tsx: "TypeScript", py: "Python", rb: "Ruby", go: "Go", rs: "Rust", java: "Java", css: "CSS", html: "HTML", json: "JSON", md: "Markdown" };
-    files.push({ path: matches[i].path, content, language: langMap[ext] || ext });
-  }
-
-  return files;
+  return `You are a concise code analyst. Create a short project summary for Codebase Brain.\n\nRules:\n- 2 to 4 sentences only.\n- Mention likely purpose, detected stack, and important architecture clues.\n- If context is incomplete, say that this is based only on the provided sample.\n\nProject name: ${name}\nRepository URL: ${repoUrl || "not provided"}\nDetected stack: ${detectedStack.join(", ") || "unknown"}\nFallback summary: ${fallbackSummary}\n\nFiles:\n${filePreview || "No pasted files were provided."}`;
 }
 
 export default function AddRepository() {
@@ -72,53 +39,56 @@ export default function AddRepository() {
 
   const handleCreate = async () => {
     const name = projectName.trim() || extractProjectName(repoUrl) || "Untitled Project";
-    if (!repoUrl && !pastedCode.trim()) {
+    const files = parsePastedCode(pastedCode);
+
+    if (!repoUrl.trim() && files.length === 0) {
       toast({ title: "Provide a GitHub URL or paste some code", variant: "destructive" });
       return;
     }
 
     setSaving(true);
     try {
-      const detectedStack = detectStackFromCode(pastedCode || repoUrl);
+      const detectedStack = detectStackFromFiles(files, repoUrl);
+      const fallbackSummary = createFallbackSummary({
+        name,
+        repositoryUrl: repoUrl,
+        files,
+        detectedStack,
+      });
 
       const project = await base44.entities.CodebaseProject.create({
         name,
-        repository_url: repoUrl || null,
+        repository_url: repoUrl.trim() || null,
         status: "draft",
         detected_stack: detectedStack,
-        description: repoUrl ? `Repository: ${repoUrl}` : "Pasted code project",
+        summary: fallbackSummary,
+        description: repoUrl.trim() ? `Repository: ${repoUrl.trim()}` : "Pasted code project",
       });
 
-      // Parse and store files if code was pasted
-      if (pastedCode.trim()) {
-        const files = parseFileSections(pastedCode);
-        for (const f of files) {
-          await base44.entities.CodeFile.create({
-            project_id: project.id,
-            path: f.path,
-            language: f.language,
-            content: f.content,
-            size: f.content.length,
-          });
-        }
+      for (const file of files) {
+        await base44.entities.CodeFile.create({
+          project_id: project.id,
+          path: file.path,
+          language: file.language,
+          content: file.content,
+          size: file.size,
+        });
       }
 
-      // Generate a lightweight summary
       try {
-        const summaryContext = pastedCode.trim()
-          ? pastedCode.substring(0, 3000)
-          : `GitHub repository: ${repoUrl}`;
-
         const summary = await base44.integrations.Core.InvokeLLM({
-          prompt: `You are a code analyst. Given the following codebase information, write a brief 2-3 sentence project summary describing what this project likely does, its main technologies, and architecture pattern. Be concise.\n\nCodebase info:\n${summaryContext}`,
+          prompt: buildSummaryPrompt({ name, repoUrl, files, detectedStack, fallbackSummary }),
         });
 
         await base44.entities.CodebaseProject.update(project.id, {
-          summary: summary,
+          summary: summary || fallbackSummary,
           status: "indexed",
         });
       } catch {
-        await base44.entities.CodebaseProject.update(project.id, { status: "indexed" });
+        await base44.entities.CodebaseProject.update(project.id, {
+          summary: fallbackSummary,
+          status: "indexed",
+        });
       }
 
       navigate(`/project/${project.id}`);
@@ -138,7 +108,9 @@ export default function AddRepository() {
 
       <div>
         <h1 className="font-heading text-xl font-bold text-slate-900">Add Repository</h1>
-        <p className="text-sm text-slate-500 mt-1">Provide a GitHub URL or paste code to index.</p>
+        <p className="text-sm text-slate-500 mt-1">
+          Start small: save a GitHub URL or paste a few files. Full repository import comes later.
+        </p>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
@@ -163,7 +135,9 @@ export default function AddRepository() {
             value={repoUrl}
             onChange={(e) => handleUrlChange(e.target.value)}
           />
-          <p className="text-xs text-slate-400">Public repositories only for now. Private repo import coming soon.</p>
+          <p className="text-xs text-slate-400">
+            Phase 1 stores the URL only. Automatic public/private import is intentionally not implemented yet.
+          </p>
         </div>
 
         <div className="relative">
@@ -180,14 +154,14 @@ export default function AddRepository() {
           </Label>
           <Textarea
             id="code"
-            placeholder={"// file: src/index.js\nconst express = require('express');\n...\n\n// file: src/routes.js\nmodule.exports = ..."}
+            placeholder={"--- package.json ---\n{\"dependencies\":{\"react\":\"latest\",\"vite\":\"latest\"}}\n\n--- src/App.jsx ---\nexport default function App() {\n  return <div>Hello</div>;\n}"}
             value={pastedCode}
             onChange={(e) => setPastedCode(e.target.value)}
-            rows={10}
+            rows={12}
             className="font-mono text-sm"
           />
           <p className="text-xs text-slate-400">
-            Tip: Use <code className="bg-slate-100 px-1 rounded">// file: path/to/file.js</code> comments to separate multiple files.
+            Supported markers: <code className="bg-slate-100 px-1 rounded">--- src/App.jsx ---</code> or <code className="bg-slate-100 px-1 rounded">// file: src/App.jsx</code>
           </p>
         </div>
 
