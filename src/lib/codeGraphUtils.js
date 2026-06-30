@@ -226,7 +226,7 @@ export function relatedPathsForChangedFiles(relations = [], changedFiles = []) {
     if (relation.to_file && changed.has(relation.to_file)) related.add(relation.from_file);
   }
 
-  return [...related];
+  return [...related].filter((path) => !changed.has(normalizePath(path)));
 }
 
 export function summarizeCodeGraph(relations = []) {
