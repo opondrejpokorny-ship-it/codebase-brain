@@ -63,10 +63,26 @@ function normalizeRule(rule = {}) {
   };
 }
 
+function defaultRulesForRuntime() {
+  return DEFAULT_PROJECT_RULES.map((rule, index) => ({
+    ...rule,
+    id: `default_rule_${index + 1}`,
+    is_active: true,
+    created_date: null,
+    updated_date: null,
+    storage_source: "default_fallback",
+  }));
+}
+
 export function readLocalProjectRules(projectId) {
   if (!projectId || !storageAvailable()) return [];
   const all = safeJsonParse(window.localStorage.getItem(STORAGE_KEY) || "{}", {});
   return Array.isArray(all[projectId]) ? all[projectId] : [];
+}
+
+export function getProjectRulesForRuntime(projectId) {
+  const localRules = readLocalProjectRules(projectId);
+  return localRules.length ? localRules : defaultRulesForRuntime();
 }
 
 export function writeLocalProjectRules(projectId, rules = []) {
