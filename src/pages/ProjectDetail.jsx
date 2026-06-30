@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Check, ClipboardCopy, FileCode, FileDiff, Layers, Loader2, PackageSearch, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, ClipboardCopy, DownloadCloud, FileCode, FileDiff, Layers, Loader2, PackageSearch, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { base44 } from "@/api/base44Client";
@@ -8,6 +8,7 @@ import ChatBox from "@/components/projects/ChatBox";
 import CodeRelationsCard from "@/components/projects/CodeRelationsCard";
 import ImportMetadataCard from "@/components/projects/ImportMetadataCard";
 import { resolveQueuedTarget } from "@/lib/focusedGithubResolve";
+import { runFocusedResolveWorkflow } from "@/lib/focusedResolveWorkflow";
 import {
   clearMissingContextQueue,
   formatMissingContextImportPrompt,
@@ -48,12 +49,26 @@ function queueStatusBadgeClass(status) {
   return "bg-amber-50 text-amber-700 border-amber-200";
 }
 
+function storedPathSetForFiles(files = []) {
+  return new Set(files.map((file) => String(file.path || "").replace(/^\/+/, "")));
+}
+
 function resolveQueueAgainstFiles(queue = [], files = []) {
-  const storedPathSet = new Set(files.map((file) => String(file.path || "").replace(/^\/+/, "")));
+  const storedPathSet = storedPathSetForFiles(files);
   return queue.map((item) => resolveQueuedTarget(item, storedPathSet));
 }
 
-function MissingContextQueueCard({ project, projectId, queue = [], files = [], onClear }) {
+function MissingContextQueueCard({
+  project,
+  projectId,
+  queue = [],
+  files = [],
+  resolving = false,
+  resolveMessage = "",
+  resolveError = "",
+  onResolve,
+  onClear,
+}) {
   const [copied, setCopied] = useState(false);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
 
@@ -62,6 +77,7 @@ function MissingContextQueueCard({ project, projectId, queue = [], files = [], o
   const resolvedQueue = resolveQueueAgainstFiles(queue, files);
   const indexedCount = resolvedQueue.filter((item) => item.status === "indexed").length;
   const missingCount = Math.max(0, resolvedQueue.length - indexedCount);
+  const canResolve = Boolean(project?.repository_url) && missingCount > 0 && !resolving;
 
   const handleCopy = async () => {
     try {
@@ -119,6 +135,10 @@ function MissingContextQueueCard({ project, projectId, queue = [], files = [], o
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={onResolve} disabled={!canResolve} className="cursor-pointer gap-1.5 bg-white/70">
+            {resolving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <DownloadCloud className="w-3.5 h-3.5" />}
+            {resolving ? "Resolving…" : "Resolve from GitHub"}
+          </Button>
           <Link to={`/project/${projectId}/import-queue`}>
             <Button type="button" variant="outline" size="sm" className="cursor-pointer gap-1.5 bg-white/70">
               <PackageSearch className="w-3.5 h-3.5" />
@@ -138,6 +158,10 @@ function MissingContextQueueCard({ project, projectId, queue = [], files = [], o
           </Button>
         </div>
       </div>
+
+      {resolveMessage && <p className="text-xs text-emerald-700 bg-white/70 border border-emerald-100 rounded-md px-3 py-2 mb-3">{resolveMessage}</p>}
+      {resolveError && <p className="text-xs text-red-700 bg-white/70 border border-red-100 rounded-md px-3 py-2 mb-3">{resolveError}</p>}
+
       <div className="grid sm:grid-cols-2 gap-1.5">
         {resolvedQueue.map((item) => (
           <div key={item.target} className="bg-white/60 rounded-md px-2 py-1.5">
@@ -152,7 +176,7 @@ function MissingContextQueueCard({ project, projectId, queue = [], files = [], o
         ))}
       </div>
       <p className="text-xs text-amber-700 mt-3">
-        Open the checklist to resolve missing targets from GitHub, clear resolved items, or rerun Impact Analysis.
+        Resolve missing targets here, or open the checklist to clear resolved items and rerun Impact Analysis.
       </p>
     </div>
   );
@@ -165,6 +189,9 @@ export default function ProjectDetail() {
   const [files, setFiles] = useState([]);
   const [messages, setMessages] = useState([]);
   const [missingContextQueue, setMissingContextQueue] = useState([]);
+  const [resolvingQueue, setResolvingQueue] = useState(false);
+  const [queueResolveMessage, setQueueResolveMessage] = useState("");
+  const [queueResolveError, setQueueResolveError] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -184,6 +211,40 @@ export default function ProjectDetail() {
 
   const handleNewMessage = (msg) => {
     setMessages((prev) => [...prev, msg]);
+  };
+
+  const handleResolveQueueFromGitHub = async () => {
+    setResolvingQueue(true);
+    setQueueResolveMessage("Resolving queued targets from public GitHub…");
+    setQueueResolveError("");
+
+    try {
+      const storedPathSet = storedPathSetForFiles(files);
+      const resolvedQueue = missingContextQueue.map((item) => resolveQueuedTarget(item, storedPathSet));
+      const result = await runFocusedResolveWorkflow({
+        project,
+        projectId: id,
+        files,
+        queue: missingContextQueue,
+        resolvedQueue,
+        storedPathSet,
+      });
+
+      setFiles(result.nextFiles);
+      setProject((prev) => ({
+        ...(prev || {}),
+        status: result.nextProjectStatus,
+        import_metadata: result.nextImportMetadata,
+      }));
+
+      const missSuffix = result.misses.length ? ` ${result.misses.length} target${result.misses.length === 1 ? "" : "s"} still not found.` : "";
+      setQueueResolveMessage(`Imported ${result.createdFiles.length} file${result.createdFiles.length === 1 ? "" : "s"} from ${result.branch}.${missSuffix}`);
+    } catch (error) {
+      setQueueResolveError(error?.message || "Failed to resolve queued targets from public GitHub.");
+      setQueueResolveMessage("");
+    } finally {
+      setResolvingQueue(false);
+    }
   };
 
   const handleDelete = async () => {
@@ -291,7 +352,21 @@ export default function ProjectDetail() {
       </div>
 
       <ImportMetadataCard project={project} />
-      <MissingContextQueueCard project={project} projectId={id} queue={missingContextQueue} files={files} onClear={() => setMissingContextQueue([])} />
+      <MissingContextQueueCard
+        project={project}
+        projectId={id}
+        queue={missingContextQueue}
+        files={files}
+        resolving={resolvingQueue}
+        resolveMessage={queueResolveMessage}
+        resolveError={queueResolveError}
+        onResolve={handleResolveQueueFromGitHub}
+        onClear={() => {
+          setMissingContextQueue([]);
+          setQueueResolveMessage("");
+          setQueueResolveError("");
+        }}
+      />
       <CodeRelationsCard files={files} />
 
       <div className="grid lg:grid-cols-2 gap-6">
