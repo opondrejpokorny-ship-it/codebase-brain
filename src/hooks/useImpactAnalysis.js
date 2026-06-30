@@ -6,12 +6,12 @@ import { buildContextPack } from "@/lib/contextPackBuilder";
 import { formatPrDiffForImpactAnalysis } from "@/lib/githubPrUtils";
 import { compareProjectAndPrRepository } from "@/lib/repositoryCompatibilityUtils";
 import {
-  buildImpactAnalysisPrompt,
   calibrateImpactAnalysisOutput,
   extractChangedFiles,
   heuristicRiskSignals,
   initialRiskLevel,
 } from "@/lib/impactAnalysisUtils";
+import { buildImpactAnalysisPromptWithDepth } from "@/lib/impactAnalysisPromptBuilder";
 import {
   formatRiskMemoryForPrompt,
   mergeAnalysisHistories,
@@ -142,7 +142,7 @@ export function useImpactAnalysis(projectId) {
       const preRelatedPaths = relatedPathsForChangedFiles(codeRelations, preChangedFiles);
       const riskMemoryText = formatRiskMemoryForPrompt(analyses, preChangedFiles, preRelatedPaths, preSignals);
       const projectRulesText = formatProjectRulesForPrompt(getProjectRulesForRuntime(projectId));
-      const payload = buildImpactAnalysisPrompt({ project, files, changeInput, relations: codeRelations, riskMemoryText, projectRulesText, contextDepth });
+      const payload = buildImpactAnalysisPromptWithDepth({ project, files, changeInput, relations: codeRelations, riskMemoryText, projectRulesText, contextDepth });
       const answer = await base44.integrations.Core.InvokeLLM({ prompt: payload.prompt });
       const calibrated = calibrateImpactAnalysisOutput({ text: answer || "No analysis was generated.", heuristicRisk: payload.heuristicRisk, signals: payload.signals, changeInput });
       setResult(calibrated.text);
