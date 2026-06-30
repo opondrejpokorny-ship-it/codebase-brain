@@ -19,6 +19,8 @@ const ENV_KEYS = [
   "GITHUB_WEBHOOK_DELIVERY_LOGGING_ENABLED",
   "GITHUB_INSTALLATION_LOGGING_ENABLED",
   "GITHUB_REPOSITORY_LINK_LOGGING_ENABLED",
+  "GITHUB_INSTALLATION_TOKEN_HELPER_ENABLED",
+  "GITHUB_INSTALLATION_TOKEN_DRY_RUN_ONLY",
   "GITHUB_PRIVATE_IMPORT_ENABLED",
   "GITHUB_AUTO_ANALYZE_PRS",
   "GITHUB_PR_POSTING_ENABLED",
@@ -119,6 +121,8 @@ function inspectRuntime(): JsonMap {
   const base44 = getBase44Candidate();
   const entityInspection = inspectEntityApis(base44);
   const expected = entityInspection.expected_entities || {};
+  const appIdPresent = Boolean(env("GITHUB_APP_ID"));
+  const privateKeyPresent = Boolean(env("GITHUB_APP_PRIVATE_KEY"));
 
   return {
     timestamp: new Date().toISOString(),
@@ -132,6 +136,7 @@ function inspectRuntime(): JsonMap {
       webhook_delivery_logging_ready: readyForEntityWrites(expected.GitHubWebhookDelivery),
       installation_logging_ready: readyForEntityWrites(expected.GitHubInstallation),
       repository_link_logging_ready: readyForEntityWrites(expected.GitHubRepositoryLink),
+      installation_token_helper_dry_run_ready: Boolean(envFlag("GITHUB_APP_ENABLED") && envFlag("GITHUB_INSTALLATION_TOKEN_HELPER_ENABLED") && appIdPresent && privateKeyPresent),
       pull_request_analysis_ready: readyForEntityWrites(expected.PullRequestAnalysis),
     },
     base44: {
@@ -146,6 +151,7 @@ function inspectRuntime(): JsonMap {
       "If globalThis.base44.entities.GitHubWebhookDelivery is not present, webhook delivery persistence must use a different official Base44 server-side entity API.",
       "If GitHubInstallation is not present, installation metadata persistence remains disabled even when the feature flag is enabled.",
       "If GitHubRepositoryLink is not present, repository link metadata persistence remains disabled even when the feature flag is enabled.",
+      "Installation token helper readiness only confirms env/config presence. Token generation remains dry-run-only until a later phase.",
     ],
   };
 }
