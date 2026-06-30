@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, AlertTriangle, CheckCircle2, DownloadCloud, FileDiff, GitBranch, Loader2, Sparkles } from "lucide-react";
+import { ArrowLeft, AlertTriangle, CheckCircle2, DownloadCloud, FileDiff, GitBranch, History, Loader2, Sparkles } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,12 @@ import {
   heuristicRiskSignals,
   initialRiskLevel,
 } from "@/lib/impactAnalysisUtils";
+import {
+  createAnalysisHistoryRecord,
+  mergeAnalysisHistories,
+  readLocalAnalysisHistory,
+  writeLocalAnalysisRecord,
+} from "@/lib/analysisHistoryUtils";
 
 const riskStyles = {
   low: "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -113,11 +119,12 @@ export default function ImpactAnalysis() {
         const storedAnalyses = analysisEntity?.filter
           ? await analysisEntity.filter({ project_id: id }, "created_date", 20).catch(() => [])
           : [];
+        const localAnalyses = readLocalAnalysisHistory(id);
 
         if (!cancelled) {
           setProject(projects?.[0] || fallbackProjectFromFiles(id, storedFiles || []));
           setFiles(storedFiles || []);
-          setAnalyses(storedAnalyses || []);
+          setAnalyses(mergeAnalysisHistories(storedAnalyses || [], localAnalyses || []).slice(0, 20));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -188,44 +195,49 @@ export default function ImpactAnalysis() {
       setResult(finalAnswer);
       setRiskLevel(parsedRisk);
 
+      const historyRecord = createAnalysisHistoryRecord({
+        projectId: id,
+        type: prMeta ? "public_github_pr_impact" : "manual_diff_impact",
+        input: changeInput,
+        result: finalAnswer,
+        riskLevel: parsedRisk,
+        changedFiles: payload.changedFiles,
+        relatedFiles: payload.relatedPaths,
+        riskSignals: payload.signals,
+        relevantRelations: payload.relevantRelations.map((relation) => `${relation.from_file}->${relation.to_file || relation.import_path}`),
+        relevantFiles: payload.relevantFiles.map((file) => file.path),
+        contextPack: payload.contextPack,
+        repositoryCompatibility: prMeta ? compatibility : null,
+        prMetadata: prMeta
+          ? {
+              repositoryFullName: prMeta.repositoryFullName,
+              prNumber: prMeta.prNumber,
+              title: prMeta.title,
+              state: prMeta.state,
+              htmlUrl: prMeta.htmlUrl,
+              baseRef: prMeta.baseRef,
+              headRef: prMeta.headRef,
+              changedFilesCount: prMeta.changedFilesCount,
+              additions: prMeta.additions,
+              deletions: prMeta.deletions,
+              truncated: prMeta.truncated,
+              source: prMeta.source,
+              backendError: prMeta.backendError || null,
+            }
+          : null,
+      });
+
+      const localSaved = writeLocalAnalysisRecord(id, historyRecord);
+      if (localSaved) setAnalyses((prev) => mergeAnalysisHistories([localSaved], prev).slice(0, 20));
+
       try {
         const analysisEntity = optionalEntity("CodebaseAnalysis");
         if (!analysisEntity?.create) return;
 
-        const saved = await analysisEntity.create({
-          project_id: id,
-          type: prMeta ? "public_github_pr_impact" : "manual_diff_impact",
-          input: changeInput,
-          result: finalAnswer,
-          risk_level: parsedRisk,
-          changed_files: payload.changedFiles,
-          risk_signals: payload.signals,
-          related_files: payload.relatedPaths,
-          relevant_relations: payload.relevantRelations.map((relation) => `${relation.from_file}->${relation.to_file || relation.import_path}`),
-          relevant_files: payload.relevantFiles.map((file) => file.path),
-          repository_compatibility: prMeta ? compatibility : null,
-          pr_metadata: prMeta
-            ? {
-                repositoryFullName: prMeta.repositoryFullName,
-                prNumber: prMeta.prNumber,
-                title: prMeta.title,
-                state: prMeta.state,
-                htmlUrl: prMeta.htmlUrl,
-                baseRef: prMeta.baseRef,
-                headRef: prMeta.headRef,
-                changedFilesCount: prMeta.changedFilesCount,
-                additions: prMeta.additions,
-                deletions: prMeta.deletions,
-                truncated: prMeta.truncated,
-                source: prMeta.source,
-                backendError: prMeta.backendError || null,
-              }
-            : null,
-          created_date: new Date().toISOString(),
-        });
-        setAnalyses((prev) => [saved, ...prev].slice(0, 20));
+        const saved = await analysisEntity.create(historyRecord);
+        setAnalyses((prev) => mergeAnalysisHistories([saved], prev).slice(0, 20));
       } catch {
-        // Analysis history is optional. Keep the analysis feature usable without the entity.
+        // Base44 analysis entity is optional. Local Risk Memory already saved the report.
       }
     } catch (error) {
       toast({
@@ -273,7 +285,7 @@ export default function ImpactAnalysis() {
       )}
 
       <div className="bg-white rounded-xl border border-slate-200 p-6">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
           <div>
             <h1 className="font-heading text-xl font-bold text-slate-900 flex items-center gap-2">
               <FileDiff className="w-5 h-5 text-slate-500" />
@@ -283,9 +295,17 @@ export default function ImpactAnalysis() {
               Paste a public GitHub PR URL, diff, or changed file list. Codebase Brain compares it with the stored project context and Code Graph Lite relations.
             </p>
           </div>
-          <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200">
-            {files.length} stored files
-          </Badge>
+          <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+            <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 justify-center">
+              {files.length} stored files
+            </Badge>
+            <Link to={`/project/${id}/risk-memory`}>
+              <Button variant="outline" size="sm" className="cursor-pointer gap-2 w-full sm:w-auto">
+                <History className="w-4 h-4" />
+                Risk Memory
+              </Button>
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -447,7 +467,12 @@ export default function ImpactAnalysis() {
 
           {analyses.length > 0 && (
             <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <h3 className="font-heading font-semibold text-sm text-slate-900 mb-3">Recent analyses</h3>
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <h3 className="font-heading font-semibold text-sm text-slate-900">Recent analyses</h3>
+                <Link to={`/project/${id}/risk-memory`} className="text-xs text-slate-500 hover:text-slate-800 underline cursor-pointer">
+                  View memory
+                </Link>
+              </div>
               <div className="space-y-2">
                 {analyses.slice(0, 6).map((analysis) => (
                   <div key={analysis.id} className="border border-slate-100 rounded-lg p-3">
