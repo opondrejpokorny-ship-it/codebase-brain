@@ -1,5 +1,6 @@
 const STORAGE_KEY = "codebase_brain_analysis_history_v1";
 const MAX_LOCAL_RECORDS_PER_PROJECT = 80;
+export const CURRENT_RISK_CALIBRATION_VERSION = 2;
 
 function safeJsonParse(value, fallback) {
   try {
@@ -25,6 +26,14 @@ function normalizeList(value) {
 
 function escapeRegExp(value = "") {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function riskCalibrationVersion(analysis = {}) {
+  return Number(analysis.risk_calibration_version || analysis.riskCalibrationVersion || 1);
+}
+
+function isCurrentRiskCalibration(analysis = {}) {
+  return riskCalibrationVersion(analysis) >= CURRENT_RISK_CALIBRATION_VERSION;
 }
 
 export function extractMarkdownSection(markdown = "", heading = "") {
@@ -105,6 +114,7 @@ export function createAnalysisHistoryRecord({
     input: String(input || ""),
     result: String(result || ""),
     risk_level: riskLevel || "medium",
+    risk_calibration_version: CURRENT_RISK_CALIBRATION_VERSION,
     changed_files: normalizeList(changedFiles),
     related_files: normalizeList(relatedFiles),
     risk_signals: normalizeList(riskSignals),
@@ -136,20 +146,30 @@ function sortedCounts(map, limit = 10) {
 
 export function buildRiskMemory(analyses = []) {
   const highRiskFiles = new Map();
+  const legacyHighRiskFiles = new Map();
   const changedFiles = new Map();
   const relatedFiles = new Map();
   const riskSignals = new Map();
   const recommendedTests = new Map();
   const riskCounts = { high: 0, medium: 0, low: 0, unknown: 0 };
+  const calibratedRiskCounts = { high: 0, medium: 0, low: 0, unknown: 0 };
+  const legacyRiskCounts = { high: 0, medium: 0, low: 0, unknown: 0 };
 
   for (const analysis of analyses) {
     const risk = String(analysis.risk_level || "unknown").toLowerCase();
+    const calibrated = isCurrentRiskCalibration(analysis);
+    const targetCounts = calibrated ? calibratedRiskCounts : legacyRiskCounts;
+
     if (riskCounts[risk] === undefined) riskCounts.unknown += 1;
     else riskCounts[risk] += 1;
 
+    if (targetCounts[risk] === undefined) targetCounts.unknown += 1;
+    else targetCounts[risk] += 1;
+
     for (const file of normalizeList(analysis.changed_files)) {
       increment(changedFiles, file);
-      if (risk === "high") increment(highRiskFiles, file);
+      if (risk === "high" && calibrated) increment(highRiskFiles, file);
+      if (risk === "high" && !calibrated) increment(legacyHighRiskFiles, file);
     }
     for (const file of normalizeList(analysis.related_files)) increment(relatedFiles, file);
     for (const signal of normalizeList(analysis.risk_signals)) increment(riskSignals, signal);
@@ -158,8 +178,14 @@ export function buildRiskMemory(analyses = []) {
 
   return {
     totalAnalyses: analyses.length,
+    currentCalibrationVersion: CURRENT_RISK_CALIBRATION_VERSION,
+    calibratedAnalyses: analyses.filter(isCurrentRiskCalibration).length,
+    legacyAnalyses: analyses.filter((analysis) => !isCurrentRiskCalibration(analysis)).length,
     riskCounts,
+    calibratedRiskCounts,
+    legacyRiskCounts,
     highRiskFiles: sortedCounts(highRiskFiles, 8),
+    legacyHighRiskFiles: sortedCounts(legacyHighRiskFiles, 8),
     frequentlyChangedFiles: sortedCounts(changedFiles, 10),
     frequentlyRelatedFiles: sortedCounts(relatedFiles, 10),
     repeatedRiskSignals: sortedCounts(riskSignals, 10),
@@ -180,6 +206,7 @@ export function formatRiskMemoryForPrompt(analyses = [], changedFiles = [], rela
 
   const matchingChangedFiles = memory.frequentlyChangedFiles.filter((item) => changed.has(item.name));
   const matchingHighRiskFiles = memory.highRiskFiles.filter((item) => changed.has(item.name) || related.has(item.name));
+  const matchingLegacyHighRiskFiles = memory.legacyHighRiskFiles.filter((item) => changed.has(item.name) || related.has(item.name));
   const matchingRiskSignals = memory.repeatedRiskSignals.filter((item) => signals.has(item.name));
 
   if (!memory.totalAnalyses) {
@@ -187,13 +214,21 @@ export function formatRiskMemoryForPrompt(analyses = [], changedFiles = [], rela
   }
 
   return `Previous impact analyses available: ${memory.totalAnalyses}
-Risk distribution: high ${memory.riskCounts.high}, medium ${memory.riskCounts.medium}, low ${memory.riskCounts.low}
+Current risk calibration version: ${memory.currentCalibrationVersion}
+Calibrated analyses: ${memory.calibratedAnalyses}
+Legacy analyses from older calibration: ${memory.legacyAnalyses}
+All-time risk distribution: high ${memory.riskCounts.high}, medium ${memory.riskCounts.medium}, low ${memory.riskCounts.low}
+Calibrated risk distribution: high ${memory.calibratedRiskCounts.high}, medium ${memory.calibratedRiskCounts.medium}, low ${memory.calibratedRiskCounts.low}
+Legacy high-risk labels are advisory only and must not by themselves raise current risk.
 
 Changed files that appear repeatedly in history:
 ${formatCountList(matchingChangedFiles)}
 
-Changed or related files that previously appeared in high-risk analyses:
+Changed or related files that previously appeared in calibrated high-risk analyses:
 ${formatCountList(matchingHighRiskFiles)}
+
+Changed or related files that previously appeared in legacy high-risk analyses:
+${formatCountList(matchingLegacyHighRiskFiles)}
 
 Risk signals repeated in history:
 ${formatCountList(matchingRiskSignals)}
