@@ -1,7 +1,7 @@
 import { Sparkles, GitPullRequest, Share2, Server, TestTube } from "lucide-react";
 
 const features = [
-  { icon: Sparkles, label: "GitHub App Import", desc: "Auto-import from GitHub" },
+  { icon: Sparkles, label: "Private GitHub App", desc: "Import private repos safely" },
   { icon: GitPullRequest, label: "PR Impact Analysis", desc: "Understand PR changes" },
   { icon: Share2, label: "Code Graph", desc: "Visualize dependencies" },
   { icon: Server, label: "MCP Server", desc: "IDE integration" },
