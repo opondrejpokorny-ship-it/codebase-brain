@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, FileCode, FileDiff, Layers, Loader2, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, ClipboardCopy, FileCode, FileDiff, Layers, Loader2, PackageSearch, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { base44 } from "@/api/base44Client";
 import ChatBox from "@/components/projects/ChatBox";
 import CodeRelationsCard from "@/components/projects/CodeRelationsCard";
 import ImportMetadataCard from "@/components/projects/ImportMetadataCard";
+import { clearMissingContextQueue, formatMissingContextQueue, readMissingContextQueue } from "@/lib/missingContextQueueUtils";
 import { useNavigate } from "react-router-dom";
 import {
   AlertDialog,
@@ -36,12 +37,70 @@ const langColors = {
   JSON: "bg-slate-100 text-slate-600",
 };
 
+function MissingContextQueueCard({ projectId, queue = [], onClear }) {
+  const [copied, setCopied] = useState(false);
+
+  if (!queue.length) return null;
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(formatMissingContextQueue(queue));
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  const handleClear = () => {
+    clearMissingContextQueue(projectId);
+    onClear?.();
+    setCopied(false);
+  };
+
+  return (
+    <div className="bg-amber-50 rounded-xl border border-amber-200 p-4">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
+        <div>
+          <h2 className="font-heading font-semibold text-sm text-amber-900 flex items-center gap-2">
+            <PackageSearch className="w-4 h-4" />
+            Missing Context Import Queue
+          </h2>
+          <p className="text-xs text-amber-700 mt-1">
+            {queue.length} target{queue.length === 1 ? "" : "s"} queued from Impact Analysis for the next import or re-index step.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={handleCopy} className="cursor-pointer gap-1.5 bg-white/70">
+            {copied ? <Check className="w-3.5 h-3.5" /> : <ClipboardCopy className="w-3.5 h-3.5" />}
+            {copied ? "Copied" : "Copy queue"}
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={handleClear} className="cursor-pointer bg-white/70">
+            Clear queue
+          </Button>
+        </div>
+      </div>
+      <div className="grid sm:grid-cols-2 gap-1.5">
+        {queue.map((item) => (
+          <p key={item.target} className="text-xs font-mono text-amber-800 bg-white/60 rounded-md px-2 py-1 break-all">
+            {item.target}
+          </p>
+        ))}
+      </div>
+      <p className="text-xs text-amber-700 mt-3">
+        Re-index automation is not enabled yet; use Copy queue to paste these targets into the next import step.
+      </p>
+    </div>
+  );
+}
+
 export default function ProjectDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [project, setProject] = useState(null);
   const [files, setFiles] = useState([]);
   const [messages, setMessages] = useState([]);
+  const [missingContextQueue, setMissingContextQueue] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -54,6 +113,7 @@ export default function ProjectDetail() {
         setProject(projects[0] || null);
         setFiles(files);
         setMessages(msgs);
+        setMissingContextQueue(readMissingContextQueue(id));
       })
       .finally(() => setLoading(false));
   }, [id]);
@@ -167,6 +227,7 @@ export default function ProjectDetail() {
       </div>
 
       <ImportMetadataCard project={project} />
+      <MissingContextQueueCard projectId={id} queue={missingContextQueue} onClear={() => setMissingContextQueue([])} />
       <CodeRelationsCard files={files} />
 
       <div className="grid lg:grid-cols-2 gap-6">
