@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { base44 } from "@/api/base44Client";
 import ChatBox from "@/components/projects/ChatBox";
+import ImportMetadataCard from "@/components/projects/ImportMetadataCard";
 import { useNavigate } from "react-router-dom";
 import {
   AlertDialog,
@@ -154,6 +155,8 @@ export default function ProjectDetail() {
           </div>
         )}
       </div>
+
+      <ImportMetadataCard project={project} />
 
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Files */}
