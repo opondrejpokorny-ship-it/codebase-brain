@@ -15,7 +15,8 @@ A user can:
 5. detect a rough technology stack,
 6. generate a short project summary,
 7. view import metadata and warnings,
-8. ask questions about the stored codebase context.
+8. ask questions about the stored codebase context,
+9. paste a diff or changed file list for manual impact analysis.
 
 ## What is included now
 
@@ -28,6 +29,7 @@ A user can:
 - Lightweight public GitHub import with strict limits
 - Backend-first public import with browser fallback
 - Import metadata card on project detail
+- Manual PR / diff impact analysis
 - AI project summary through Base44 `Core.InvokeLLM`
 - AI chat over stored context with a safe phase-1 fallback
 - Documentation for next phases
@@ -43,6 +45,20 @@ The current import is intentionally small and backend-first:
 - skips `node_modules`, `dist`, `build`, generated folders, lock files, binaries, media, and real `.env` files.
 
 This is enough to test product value without building a GitHub App or backend queue yet.
+
+## Manual impact analysis
+
+Open a project and click **Impact Analysis**. Paste a git diff, PR patch, or changed file list. The app performs a deterministic pre-scan, selects relevant stored files, and asks AI for:
+
+- summary,
+- risk level,
+- affected files / flows,
+- main risks,
+- recommended tests,
+- questions before merge,
+- missing context.
+
+This does not run tests or inspect real GitHub PRs yet.
 
 ## What is intentionally not included yet
 
@@ -123,14 +139,14 @@ VITE_BASE44_APP_BASE_URL=https://your-app.base44.app
 - `docs/phase-1-scope.md`
 - `docs/phase-2-public-github-import.md`
 - `docs/phase-3-import-observability.md`
+- `docs/phase-4-manual-impact-analysis.md`
 - `docs/architecture.md`
 
 ## Next phases
 
-1. Manual PR/diff impact analysis.
-2. Code graph lite based on imports.
-3. GitHub App + private repo import + automated PR review.
-4. MCP server for Codex/Cursor/Claude Code.
+1. Code graph lite based on imports.
+2. GitHub App + private repo import + automated PR review.
+3. MCP server for Codex/Cursor/Claude Code.
 
 ## Base44 docs
 
