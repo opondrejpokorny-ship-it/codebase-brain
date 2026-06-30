@@ -40,11 +40,30 @@ function candidatePaths(base = "") {
   ];
 }
 
-function resolveCandidate(base, filePathSet) {
-  return candidatePaths(base).find((candidate) => filePathSet.has(normalizePath(candidate))) || null;
+function buildLowercasePathMap(filePathSet) {
+  const map = new Map();
+  for (const path of filePathSet) {
+    const key = normalizePath(path).toLowerCase();
+    if (!map.has(key)) map.set(key, path);
+  }
+  return map;
 }
 
-function resolveRelativeImport(fromPath, importPath, filePathSet) {
+function resolveCandidate(base, filePathSet, lowercasePathMap = null) {
+  const candidates = candidatePaths(base).map(normalizePath);
+  const exact = candidates.find((candidate) => filePathSet.has(candidate));
+  if (exact) return exact;
+
+  const lowerMap = lowercasePathMap || buildLowercasePathMap(filePathSet);
+  for (const candidate of candidates) {
+    const insensitive = lowerMap.get(candidate.toLowerCase());
+    if (insensitive) return insensitive;
+  }
+
+  return null;
+}
+
+function resolveRelativeImport(fromPath, importPath, filePathSet, lowercasePathMap = null) {
   const baseDir = dirname(fromPath);
   const rawParts = `${baseDir}/${importPath}`.split("/").filter(Boolean);
   const resolvedParts = [];
@@ -55,7 +74,7 @@ function resolveRelativeImport(fromPath, importPath, filePathSet) {
     else resolvedParts.push(part);
   }
 
-  return resolveCandidate(resolvedParts.join("/"), filePathSet);
+  return resolveCandidate(resolvedParts.join("/"), filePathSet, lowercasePathMap);
 }
 
 function parseJsonSafe(content = "") {
@@ -106,13 +125,24 @@ function detectAliasBases(files = []) {
   });
 }
 
-function resolveAliasImport(importPath, filePathSet, aliasBases) {
+function aliasCandidateBases(alias, rest) {
+  const configuredBase = `${alias.base}${rest}`.replace(/^\.\//, "");
+  const candidates = [configuredBase];
+
+  if (alias.base === "src/" || alias.prefix === "src/") candidates.push(rest);
+  if (alias.prefix === "@/" || alias.prefix === "~/") candidates.push(`src/${rest}`, rest);
+
+  return [...new Set(candidates.map(normalizePath).filter(Boolean))];
+}
+
+function resolveAliasImport(importPath, filePathSet, aliasBases, lowercasePathMap = null) {
   for (const alias of aliasBases) {
     if (!importPath.startsWith(alias.prefix)) continue;
     const rest = importPath.slice(alias.prefix.length);
-    const base = `${alias.base}${rest}`.replace(/^\.\//, "");
-    const resolved = resolveCandidate(base, filePathSet);
-    if (resolved) return resolved;
+    for (const base of aliasCandidateBases(alias, rest)) {
+      const resolved = resolveCandidate(base, filePathSet, lowercasePathMap);
+      if (resolved) return resolved;
+    }
   }
   return null;
 }
@@ -158,6 +188,7 @@ function packageName(importPath = "") {
 export function buildCodeRelations(files = []) {
   const filePaths = files.map((file) => normalizePath(file.path)).filter(Boolean);
   const filePathSet = new Set(filePaths);
+  const lowercasePathMap = buildLowercasePathMap(filePathSet);
   const aliasBases = detectAliasBases(files);
   const relations = [];
 
@@ -172,9 +203,9 @@ export function buildCodeRelations(files = []) {
       const relative = isRelativeImport(importPath);
       const alias = !relative && isAliasImport(importPath);
       const resolvedPath = relative
-        ? resolveRelativeImport(fromPath, importPath, filePathSet)
+        ? resolveRelativeImport(fromPath, importPath, filePathSet, lowercasePathMap)
         : alias
-          ? resolveAliasImport(importPath, filePathSet, aliasBases)
+          ? resolveAliasImport(importPath, filePathSet, aliasBases, lowercasePathMap)
           : null;
 
       let targetKind = "unknown";
