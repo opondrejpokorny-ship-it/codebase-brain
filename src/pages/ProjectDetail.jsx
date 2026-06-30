@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { base44 } from "@/api/base44Client";
 import ChatBox from "@/components/projects/ChatBox";
+import CodeRelationsCard from "@/components/projects/CodeRelationsCard";
 import ImportMetadataCard from "@/components/projects/ImportMetadataCard";
 import { useNavigate } from "react-router-dom";
 import {
@@ -165,6 +166,7 @@ export default function ProjectDetail() {
       </div>
 
       <ImportMetadataCard project={project} />
+      <CodeRelationsCard files={files} />
 
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Files */}
