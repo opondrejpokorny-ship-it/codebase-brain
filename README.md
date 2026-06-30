@@ -25,14 +25,17 @@ A user can:
 15. optionally log webhook deliveries and dedupe them if the Base44 entity API is available in the function runtime,
 16. optionally store GitHub installation metadata if the Base44 entity API is available,
 17. optionally store installed repository link metadata if the Base44 entity API is available,
-18. run a safe Base44 runtime diagnostics endpoint that reports capability presence without exposing secrets,
-19. run diagnostics from the app UI at `/diagnostics`.
+18. view installed repository links at `/github/repositories`,
+19. manually link installed repository metadata to a `CodebaseProject`,
+20. run a safe Base44 runtime diagnostics endpoint that reports capability presence without exposing secrets,
+21. run diagnostics from the app UI at `/diagnostics`.
 
 ## What is included now
 
 - Dashboard with project list
 - Add Repository page
 - Project Detail page
+- Installed GitHub Repositories page
 - File list
 - Basic stack detection
 - Pasted-code parser
@@ -51,6 +54,7 @@ A user can:
 - Optional webhook delivery logging adapter
 - Optional GitHub installation metadata adapter
 - Optional GitHub repository link metadata adapter
+- Manual repository-to-project linking UI
 - Base44 runtime diagnostics function
 - Runtime Diagnostics UI
 - AI project summary through Base44 `Core.InvokeLLM`
@@ -207,6 +211,18 @@ globalThis.base44.entities.GitHubRepositoryLink
 
 It upserts metadata from `repositories_added`, `repositories_removed`, `repositories`, and `repository` payload fields. Records are keyed by `installation_id + repository_id`. This still does not create installation access tokens or import private files.
 
+## Installed repository links UI
+
+A metadata-only UI exists at:
+
+```txt
+/github/repositories
+```
+
+It shows captured `GitHubRepositoryLink` rows and lets a user manually link a repository metadata record to a `CodebaseProject`. This only updates local metadata fields such as `project_id`, `linked_status`, and `linked_at`.
+
+It does not fetch files, create installation tokens, call GitHub APIs, or run AI analysis.
+
 ## Base44 runtime diagnostics
 
 A safe diagnostics endpoint exists:
@@ -238,7 +254,6 @@ Use it after deploying Base44 functions to verify `GitHubWebhookDelivery`, `GitH
 - private repository file import
 - confirmed Base44 backend entity binding in deployed runtime
 - installation access token creation
-- installed repository links UI
 - automatic PR analysis from webhooks
 - PR comments
 - CI/check inspection
@@ -327,6 +342,7 @@ VITE_BASE44_APP_BASE_URL=https://your-app.base44.app
 - `docs/phase-12-installation-metadata-skeleton.md`
 - `docs/phase-13-private-repo-url-only-fallback.md`
 - `docs/phase-14-repository-link-metadata-skeleton.md`
+- `docs/phase-15-installed-repositories-ui.md`
 - `docs/github-app-review-safety-contract.md`
 - `docs/github-webhook-contract.md`
 - `docs/architecture.md`
@@ -335,9 +351,10 @@ VITE_BASE44_APP_BASE_URL=https://your-app.base44.app
 
 1. Run diagnostics in deployed Base44 runtime and confirm the entity API.
 2. If needed, replace the webhook persistence adapter with the official server-side Base44 entity API.
-3. Add installed repository links UI.
-4. GitHub App + private repo import + automated internal PR analysis.
-5. MCP server for Codex/Cursor/Claude Code.
+3. Add private import readiness card to Project Detail.
+4. Implement installation access token creation for read-only private import.
+5. GitHub App + private repo import + automated internal PR analysis.
+6. MCP server for Codex/Cursor/Claude Code.
 
 ## Base44 docs
 
