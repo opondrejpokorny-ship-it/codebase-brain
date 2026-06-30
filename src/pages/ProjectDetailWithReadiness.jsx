@@ -4,6 +4,7 @@ import { base44 } from "@/api/base44Client";
 import ProjectDetail from "@/pages/ProjectDetail";
 import PrivateImportReadinessCard from "@/components/projects/PrivateImportReadinessCard";
 import ContextEfficiencyCard from "@/components/projects/ContextEfficiencyCard";
+import { persistCodeRelationsIfAvailable } from "@/lib/codeRelationPersistence";
 
 function pickDefaultContextFiles(files = []) {
   const priorityPatterns = [
@@ -54,6 +55,10 @@ export default function ProjectDetailWithReadiness() {
           setProject(projects?.[0] || null);
           setFiles(storedFiles || []);
           setRepositoryLinks(links || []);
+        }
+
+        if (storedFiles?.length) {
+          persistCodeRelationsIfAvailable({ projectId: id, files: storedFiles }).catch(() => null);
         }
       } catch {
         if (!cancelled) {
