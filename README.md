@@ -14,7 +14,8 @@ A user can:
 4. store parsed file records,
 5. detect a rough technology stack,
 6. generate a short project summary,
-7. ask questions about the stored codebase context.
+7. view import metadata and warnings,
+8. ask questions about the stored codebase context.
 
 ## What is included now
 
@@ -25,19 +26,21 @@ A user can:
 - Basic stack detection
 - Pasted-code parser
 - Lightweight public GitHub import with strict limits
+- Backend-first public import with browser fallback
+- Import metadata card on project detail
 - AI project summary through Base44 `Core.InvokeLLM`
 - AI chat over stored context with a safe phase-1 fallback
 - Documentation for next phases
 
 ## Public GitHub import limits
 
-The current import is intentionally small and client-side:
+The current import is intentionally small and backend-first:
 
 - public repositories only,
 - max 40 text files,
 - max 35 KB per file,
 - max 3,000 tree entries inspected,
-- skips `node_modules`, `dist`, `build`, generated folders, lock files, binaries, and media.
+- skips `node_modules`, `dist`, `build`, generated folders, lock files, binaries, media, and real `.env` files.
 
 This is enough to test product value without building a GitHub App or backend queue yet.
 
@@ -119,15 +122,15 @@ VITE_BASE44_APP_BASE_URL=https://your-app.base44.app
 
 - `docs/phase-1-scope.md`
 - `docs/phase-2-public-github-import.md`
+- `docs/phase-3-import-observability.md`
 - `docs/architecture.md`
 
 ## Next phases
 
-1. Move public import into a Base44 backend function.
-2. Manual PR/diff impact analysis.
-3. Code graph lite based on imports.
-4. GitHub App + private repo import + automated PR review.
-5. MCP server for Codex/Cursor/Claude Code.
+1. Manual PR/diff impact analysis.
+2. Code graph lite based on imports.
+3. GitHub App + private repo import + automated PR review.
+4. MCP server for Codex/Cursor/Claude Code.
 
 ## Base44 docs
 
