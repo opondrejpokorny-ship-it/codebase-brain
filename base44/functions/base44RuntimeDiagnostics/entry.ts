@@ -18,6 +18,7 @@ const ENV_KEYS = [
   "GITHUB_WEBHOOK_PROCESSING_ENABLED",
   "GITHUB_WEBHOOK_DELIVERY_LOGGING_ENABLED",
   "GITHUB_INSTALLATION_LOGGING_ENABLED",
+  "GITHUB_REPOSITORY_LINK_LOGGING_ENABLED",
   "GITHUB_PRIVATE_IMPORT_ENABLED",
   "GITHUB_AUTO_ANALYZE_PRS",
   "GITHUB_PR_POSTING_ENABLED",
@@ -144,6 +145,7 @@ function inspectRuntime(): JsonMap {
       "This endpoint reports capability presence only and never returns secret values.",
       "If globalThis.base44.entities.GitHubWebhookDelivery is not present, webhook delivery persistence must use a different official Base44 server-side entity API.",
       "If GitHubInstallation is not present, installation metadata persistence remains disabled even when the feature flag is enabled.",
+      "If GitHubRepositoryLink is not present, repository link metadata persistence remains disabled even when the feature flag is enabled.",
     ],
   };
 }
