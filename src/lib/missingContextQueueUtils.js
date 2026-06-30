@@ -16,15 +16,31 @@ function safeJsonParse(value, fallback) {
   }
 }
 
+function readAllMissingContextQueues() {
+  if (!storageAvailable()) return {};
+  return safeJsonParse(window.localStorage.getItem(MISSING_CONTEXT_QUEUE_KEY) || "{}", {});
+}
+
 export function readMissingContextQueue(projectId) {
   if (!projectId || !storageAvailable()) return [];
-  const all = safeJsonParse(window.localStorage.getItem(MISSING_CONTEXT_QUEUE_KEY) || "{}", {});
+  const all = readAllMissingContextQueues();
   return Array.isArray(all[projectId]) ? all[projectId] : [];
+}
+
+export function readBestMissingContextQueue(projectId) {
+  const direct = readMissingContextQueue(projectId);
+  if (direct.length > 0) return direct;
+
+  const all = readAllMissingContextQueues();
+  const queues = Object.values(all).filter((queue) => Array.isArray(queue) && queue.length > 0);
+  if (!queues.length) return [];
+
+  return [...queues].sort((a, b) => b.length - a.length)[0] || [];
 }
 
 export function writeMissingContextQueue(projectId, queue = []) {
   if (!projectId || !storageAvailable()) return [];
-  const all = safeJsonParse(window.localStorage.getItem(MISSING_CONTEXT_QUEUE_KEY) || "{}", {});
+  const all = readAllMissingContextQueues();
   all[projectId] = Array.isArray(queue) ? queue : [];
   window.localStorage.setItem(MISSING_CONTEXT_QUEUE_KEY, JSON.stringify(all));
   return all[projectId];
