@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, AlertTriangle, CheckCircle2, DownloadCloud, FileDiff, GitBranch, History, Loader2, Sparkles } from "lucide-react";
+import { ArrowLeft, AlertTriangle, BookOpenCheck, CheckCircle2, DownloadCloud, FileDiff, GitBranch, History, Loader2, Sparkles } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +25,7 @@ import {
   readLocalAnalysisHistory,
   writeLocalAnalysisRecord,
 } from "@/lib/analysisHistoryUtils";
+import { formatProjectRulesForPrompt, readLocalProjectRules } from "@/lib/projectRulesUtils";
 
 const riskStyles = {
   low: "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -192,7 +193,8 @@ export default function ImpactAnalysis() {
       const preSignals = heuristicRiskSignals(changeInput, preChangedFiles);
       const preRelatedPaths = relatedPathsForChangedFiles(codeRelations, preChangedFiles);
       const riskMemoryText = formatRiskMemoryForPrompt(analyses, preChangedFiles, preRelatedPaths, preSignals);
-      const payload = buildImpactAnalysisPrompt({ project, files, changeInput, relations: codeRelations, riskMemoryText });
+      const projectRulesText = formatProjectRulesForPrompt(readLocalProjectRules(id));
+      const payload = buildImpactAnalysisPrompt({ project, files, changeInput, relations: codeRelations, riskMemoryText, projectRulesText });
       const answer = await base44.integrations.Core.InvokeLLM({ prompt: payload.prompt });
       const rawAnswer = answer || "No analysis was generated.";
       const calibrated = calibrateImpactAnalysisOutput({
@@ -311,6 +313,12 @@ export default function ImpactAnalysis() {
             <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 justify-center">
               {files.length} stored files
             </Badge>
+            <Link to={`/project/${id}/rules`}>
+              <Button variant="outline" size="sm" className="cursor-pointer gap-2 w-full sm:w-auto">
+                <BookOpenCheck className="w-4 h-4" />
+                Project Rules
+              </Button>
+            </Link>
             <Link to={`/project/${id}/risk-memory`}>
               <Button variant="outline" size="sm" className="cursor-pointer gap-2 w-full sm:w-auto">
                 <History className="w-4 h-4" />
