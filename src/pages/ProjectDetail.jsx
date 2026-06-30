@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Check, ClipboardCopy, DownloadCloud, FileCode, FileDiff, Layers, Loader2, PackageSearch, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, ClipboardCopy, DownloadCloud, FileDiff, Loader2, PackageSearch, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import ChatBox from "@/components/projects/ChatBox";
 import CodeRelationsCard from "@/components/projects/CodeRelationsCard";
+import FilesPanel from "@/components/projects/FilesPanel";
 import ImportMetadataCard from "@/components/projects/ImportMetadataCard";
 import { resolveQueuedTarget } from "@/lib/focusedGithubResolve";
 import { clearMissingContextQueue, formatMissingContextImportPrompt, formatMissingContextQueue } from "@/lib/missingContextQueueUtils";
@@ -26,15 +27,6 @@ const statusStyles = {
   indexed: "bg-emerald-50 text-emerald-700 border-emerald-200",
   url_only: "bg-blue-50 text-blue-700 border-blue-200",
   error: "bg-red-50 text-red-700 border-red-200",
-};
-
-const langColors = {
-  JavaScript: "bg-yellow-100 text-yellow-800",
-  TypeScript: "bg-blue-100 text-blue-800",
-  Python: "bg-green-100 text-green-800",
-  CSS: "bg-purple-100 text-purple-800",
-  HTML: "bg-orange-100 text-orange-800",
-  JSON: "bg-slate-100 text-slate-600",
 };
 
 function queueStatusBadgeClass(status) {
@@ -108,10 +100,8 @@ function MissingContextQueueCard({ project, projectId, queue = [], files = [], r
           <Button type="button" variant="outline" size="sm" onClick={handleClear} className="cursor-pointer bg-white/70">Clear queue</Button>
         </div>
       </div>
-
       {resolveMessage && <p className="text-xs text-emerald-700 bg-white/70 border border-emerald-100 rounded-md px-3 py-2 mb-3">{resolveMessage}</p>}
       {resolveError && <p className="text-xs text-red-700 bg-white/70 border border-red-100 rounded-md px-3 py-2 mb-3">{resolveError}</p>}
-
       <div className="grid sm:grid-cols-2 gap-1.5">
         {resolvedQueue.map((item) => (
           <div key={item.target} className="bg-white/60 rounded-md px-2 py-1.5">
@@ -167,10 +157,7 @@ export default function ProjectDetail() {
       <CodeRelationsCard files={files} />
 
       <div className="grid lg:grid-cols-2 gap-6">
-        <div>
-          <h2 className="text-sm font-medium text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-1.5"><FileCode className="w-3.5 h-3.5" />Files ({files.length})</h2>
-          {files.length === 0 ? <div className="bg-white rounded-xl border border-slate-200 p-8 text-center"><Layers className="w-8 h-8 text-slate-300 mx-auto mb-2" /><p className="text-sm text-slate-500">No files indexed yet.</p><p className="text-xs text-slate-400 mt-1">Paste code when creating the project or enable private repository access later.</p></div> : <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">{files.map((file) => <div key={file.id} className="px-4 py-3 flex items-center justify-between gap-3"><div className="min-w-0 flex-1"><p className="text-sm font-medium text-slate-800 truncate font-mono">{file.path}</p>{file.summary && <p className="text-xs text-slate-500 truncate mt-0.5">{file.summary}</p>}</div><div className="flex items-center gap-2 flex-shrink-0">{file.language && <span className={`text-xs px-2 py-0.5 rounded-md font-medium ${langColors[file.language] || "bg-slate-100 text-slate-600"}`}>{file.language}</span>}{file.size != null && <span className="text-xs text-slate-400">{file.size > 1024 ? `${(file.size / 1024).toFixed(1)}KB` : `${file.size}B`}</span>}</div></div>)}</div>}
-        </div>
+        <FilesPanel files={files} />
         <div><h2 className="text-sm font-medium text-slate-500 uppercase tracking-wider mb-3">AI Chat</h2><ChatBox projectId={id} messages={messages} onNewMessage={projectState.handleNewMessage} /></div>
       </div>
     </div>
