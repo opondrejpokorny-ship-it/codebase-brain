@@ -2,6 +2,7 @@
 // Deterministic, read-only, structured JSON. Does not call an LLM.
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+declare const Deno: any;
 type JsonMap = Record<string, any>;
 
 const corsHeaders: Record<string, string> = {
