@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Check, ClipboardCopy, Loader2, PackageSearch, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,8 @@ import {
   readBestMissingContextQueue,
 } from "@/lib/missingContextQueueUtils";
 
+const EXTENSIONS = [".js", ".jsx", ".ts", ".tsx"];
+
 function ChecklistItem({ children }) {
   return (
     <li className="flex gap-2 text-sm text-slate-700">
@@ -20,9 +22,38 @@ function ChecklistItem({ children }) {
   );
 }
 
+function candidatePathsForTarget(target = "") {
+  const clean = String(target || "").replace(/^\/+/, "");
+  if (!clean) return [];
+
+  const candidates = new Set([clean]);
+  for (const ext of EXTENSIONS) {
+    candidates.add(`${clean}${ext}`);
+    candidates.add(`${clean}/index${ext}`);
+  }
+  return [...candidates];
+}
+
+function resolveQueuedTarget(item, storedPathSet) {
+  const candidates = candidatePathsForTarget(item?.target || "");
+  const matchedPath = candidates.find((path) => storedPathSet.has(path));
+  return {
+    ...item,
+    candidates,
+    matchedPath,
+    status: matchedPath ? "indexed" : "missing",
+  };
+}
+
+function statusBadgeClass(status) {
+  if (status === "indexed") return "bg-emerald-50 text-emerald-700 border-emerald-200";
+  return "bg-amber-50 text-amber-700 border-amber-200";
+}
+
 export default function MissingContextImportQueue() {
   const { id } = useParams();
   const [project, setProject] = useState(null);
+  const [files, setFiles] = useState([]);
   const [queue, setQueue] = useState([]);
   const [loading, setLoading] = useState(true);
   const [copiedQueue, setCopiedQueue] = useState(false);
@@ -34,9 +65,13 @@ export default function MissingContextImportQueue() {
     async function load() {
       setLoading(true);
       try {
-        const projects = await base44.entities.CodebaseProject.filter({ id }).catch(() => []);
+        const [projects, storedFiles] = await Promise.all([
+          base44.entities.CodebaseProject.filter({ id }).catch(() => []),
+          base44.entities.CodeFile.filter({ project_id: id }).catch(() => []),
+        ]);
         if (!cancelled) {
           setProject(projects?.[0] || null);
+          setFiles(storedFiles || []);
           setQueue(readBestMissingContextQueue(id));
         }
       } finally {
@@ -50,6 +85,11 @@ export default function MissingContextImportQueue() {
       cancelled = true;
     };
   }, [id]);
+
+  const storedPathSet = useMemo(() => new Set(files.map((file) => String(file.path || "").replace(/^\/+/, ""))), [files]);
+  const resolvedQueue = useMemo(() => queue.map((item) => resolveQueuedTarget(item, storedPathSet)), [queue, storedPathSet]);
+  const indexedCount = resolvedQueue.filter((item) => item.status === "indexed").length;
+  const missingCount = Math.max(0, resolvedQueue.length - indexedCount);
 
   const importPrompt = formatMissingContextImportPrompt({
     projectName: project?.name || "this project",
@@ -114,6 +154,16 @@ export default function MissingContextImportQueue() {
             <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
               {queue.length} queued target{queue.length === 1 ? "" : "s"}
             </Badge>
+            {queue.length > 0 && (
+              <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200">
+                {indexedCount}/{queue.length} resolved
+              </Badge>
+            )}
+            {missingCount > 0 && (
+              <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                {missingCount} still missing
+              </Badge>
+            )}
           </div>
         </div>
       </div>
@@ -147,15 +197,27 @@ export default function MissingContextImportQueue() {
               </div>
             </div>
             <div className="space-y-2">
-              {queue.map((item) => (
+              {resolvedQueue.map((item) => (
                 <div key={item.target} className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
-                  <p className="text-sm font-mono text-slate-800 break-all">{item.target}</p>
-                  {(item.source_file || item.import_path) && (
-                    <p className="text-xs text-slate-400 mt-1 break-all">
-                      {item.source_file ? `From ${item.source_file}` : ""}
-                      {item.import_path ? ` · import ${item.import_path}` : ""}
-                    </p>
-                  )}
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-mono text-slate-800 break-all">{item.target}</p>
+                      {(item.source_file || item.import_path) && (
+                        <p className="text-xs text-slate-400 mt-1 break-all">
+                          {item.source_file ? `From ${item.source_file}` : ""}
+                          {item.import_path ? ` · import ${item.import_path}` : ""}
+                        </p>
+                      )}
+                      {item.matchedPath ? (
+                        <p className="text-xs text-emerald-700 mt-1 break-all">Matched stored file: {item.matchedPath}</p>
+                      ) : (
+                        <p className="text-xs text-amber-700 mt-1 break-all">Not found in stored context yet.</p>
+                      )}
+                    </div>
+                    <Badge variant="outline" className={`${statusBadgeClass(item.status)} flex-shrink-0`}>
+                      {item.status === "indexed" ? "Indexed" : "Missing"}
+                    </Badge>
+                  </div>
                 </div>
               ))}
             </div>
