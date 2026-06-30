@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
+import { Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { base44 } from "@/api/base44Client";
 import ProjectDetail from "@/pages/ProjectDetail";
 import PrivateImportReadinessCard from "@/components/projects/PrivateImportReadinessCard";
@@ -84,12 +86,22 @@ export default function ProjectDetailWithReadiness() {
         <PrivateImportReadinessCard project={project} repositoryLinks={repositoryLinks} />
       )}
       {files.length > 0 && (
-        <ContextEfficiencyCard
-          allFiles={files}
-          selectedFiles={selectedFiles}
-          title="Context Efficiency Meter"
-          description="Estimated token savings when Codebase Brain sends a focused project context instead of every stored file."
-        />
+        <div className="space-y-3">
+          <ContextEfficiencyCard
+            allFiles={files}
+            selectedFiles={selectedFiles}
+            title="Context Efficiency Meter"
+            description="Estimated token savings when Codebase Brain sends a focused project context instead of every stored file."
+          />
+          <div className="flex flex-wrap gap-2">
+            <Link to={`/project/${id}/search`}>
+              <Button variant="outline" size="sm" className="gap-2 cursor-pointer">
+                <Search className="w-4 h-4" />
+                Search Codebase
+              </Button>
+            </Link>
+          </div>
+        </div>
       )}
       <ProjectDetail />
     </div>
