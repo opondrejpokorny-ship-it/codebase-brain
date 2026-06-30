@@ -1,5 +1,7 @@
-import { FileText, GitBranch, Info, PackageSearch, TriangleAlert } from "lucide-react";
+import { useState } from "react";
+import { Check, ClipboardCopy, FileText, GitBranch, Info, PackageSearch, TriangleAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { formatEstimatedTokens } from "@/lib/tokenBudgetUtils";
 
 function relationLabel(relation) {
@@ -10,6 +12,32 @@ function relationLabel(relation) {
 function isChangedFileRelation(relation, changedSet) {
   if (!relation || changedSet.size === 0) return false;
   return changedSet.has(relation.from_file) || (relation.to_file && changedSet.has(relation.to_file));
+}
+
+function formatReasons(reasons = []) {
+  if (!reasons.length) return "  - No explicit selection reason captured.";
+  return reasons.map((reason) => `  - ${reason}`).join("\n");
+}
+
+function buildCopyText({ contextPack, selectedFiles, directChangedRelations, otherContextRelations, efficiency }) {
+  return `# Codebase Brain Context Pack Summary
+
+Selected files: ${selectedFiles.length}
+Selected tokens: ${formatEstimatedTokens(efficiency.selectedTokens || contextPack.estimatedTokens || 0)}
+Full repo estimate: ${formatEstimatedTokens(efficiency.fullRepoTokens || 0)}
+Estimated savings: ${efficiency.savingsPercent || 0}%
+
+## Context warnings
+${(contextPack.warnings || []).length ? (contextPack.warnings || []).map((warning) => `- ${warning}`).join("\n") : "- None"}
+
+## Selected files and reasons
+${selectedFiles.map((file) => `### ${file.path}\n${formatReasons(contextPack.reasons?.[file.path] || [])}`).join("\n\n")}
+
+## Graph relations connected to changed files
+${directChangedRelations.length ? directChangedRelations.map((relation) => `- ${relationLabel(relation)}`).join("\n") : "- None"}
+
+## Other selected context relations
+${otherContextRelations.length ? otherContextRelations.slice(0, 20).map((relation) => `- ${relationLabel(relation)}`).join("\n") : "- None"}`;
 }
 
 function RelationList({ title, relations = [], limit = 12 }) {
@@ -36,6 +64,7 @@ function RelationList({ title, relations = [], limit = 12 }) {
 }
 
 export default function ContextPackInspector({ contextPack, changedFiles = [] }) {
+  const [copied, setCopied] = useState(false);
   if (!contextPack) return null;
 
   const selectedFiles = contextPack.selectedFiles || [];
@@ -45,6 +74,17 @@ export default function ContextPackInspector({ contextPack, changedFiles = [] })
   const changedSet = new Set(changedFiles || []);
   const directChangedRelations = selectedRelations.filter((relation) => isChangedFileRelation(relation, changedSet));
   const otherContextRelations = selectedRelations.filter((relation) => !isChangedFileRelation(relation, changedSet));
+
+  const handleCopy = async () => {
+    const text = buildCopyText({ contextPack, selectedFiles, directChangedRelations, otherContextRelations, efficiency });
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      setCopied(false);
+    }
+  };
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-5">
@@ -58,9 +98,15 @@ export default function ContextPackInspector({ contextPack, changedFiles = [] })
             Shows the actual files selected for this input and why they were included.
           </p>
         </div>
-        <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 flex-shrink-0">
-          {selectedFiles.length} files
-        </Badge>
+        <div className="flex flex-col items-end gap-2 flex-shrink-0">
+          <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200">
+            {selectedFiles.length} files
+          </Badge>
+          <Button type="button" variant="outline" size="sm" onClick={handleCopy} className="h-8 gap-1.5 cursor-pointer text-xs">
+            {copied ? <Check className="w-3.5 h-3.5" /> : <ClipboardCopy className="w-3.5 h-3.5" />}
+            {copied ? "Copied" : "Copy summary"}
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-2 mb-4 text-xs">
