@@ -7,6 +7,7 @@ import { base44 } from "@/api/base44Client";
 import ChatBox from "@/components/projects/ChatBox";
 import CodeRelationsCard from "@/components/projects/CodeRelationsCard";
 import ImportMetadataCard from "@/components/projects/ImportMetadataCard";
+import { resolveQueuedTarget } from "@/lib/focusedGithubResolve";
 import {
   clearMissingContextQueue,
   formatMissingContextImportPrompt,
@@ -42,11 +43,25 @@ const langColors = {
   JSON: "bg-slate-100 text-slate-600",
 };
 
-function MissingContextQueueCard({ project, projectId, queue = [], onClear }) {
+function queueStatusBadgeClass(status) {
+  if (status === "indexed") return "bg-emerald-50 text-emerald-700 border-emerald-200";
+  return "bg-amber-50 text-amber-700 border-amber-200";
+}
+
+function resolveQueueAgainstFiles(queue = [], files = []) {
+  const storedPathSet = new Set(files.map((file) => String(file.path || "").replace(/^\/+/, "")));
+  return queue.map((item) => resolveQueuedTarget(item, storedPathSet));
+}
+
+function MissingContextQueueCard({ project, projectId, queue = [], files = [], onClear }) {
   const [copied, setCopied] = useState(false);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
 
   if (!queue.length) return null;
+
+  const resolvedQueue = resolveQueueAgainstFiles(queue, files);
+  const indexedCount = resolvedQueue.filter((item) => item.status === "indexed").length;
+  const missingCount = Math.max(0, resolvedQueue.length - indexedCount);
 
   const handleCopy = async () => {
     try {
@@ -92,6 +107,16 @@ function MissingContextQueueCard({ project, projectId, queue = [], onClear }) {
           <p className="text-xs text-amber-700 mt-1">
             {queue.length} target{queue.length === 1 ? "" : "s"} queued from Impact Analysis for the next import or re-index step.
           </p>
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            <Badge variant="outline" className="bg-white/70 text-amber-800 border-amber-200">
+              {indexedCount}/{queue.length} resolved
+            </Badge>
+            {missingCount > 0 && (
+              <Badge variant="outline" className="bg-white/70 text-amber-800 border-amber-200">
+                {missingCount} still missing
+              </Badge>
+            )}
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link to={`/project/${projectId}/import-queue`}>
@@ -114,14 +139,20 @@ function MissingContextQueueCard({ project, projectId, queue = [], onClear }) {
         </div>
       </div>
       <div className="grid sm:grid-cols-2 gap-1.5">
-        {queue.map((item) => (
-          <p key={item.target} className="text-xs font-mono text-amber-800 bg-white/60 rounded-md px-2 py-1 break-all">
-            {item.target}
-          </p>
+        {resolvedQueue.map((item) => (
+          <div key={item.target} className="bg-white/60 rounded-md px-2 py-1.5">
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-xs font-mono text-amber-800 break-all">{item.target}</p>
+              <Badge variant="outline" className={`${queueStatusBadgeClass(item.status)} flex-shrink-0 text-[10px] px-1.5 py-0`}>
+                {item.status === "indexed" ? "Indexed" : "Missing"}
+              </Badge>
+            </div>
+            {item.matchedPath && <p className="text-[10px] text-emerald-700 mt-1 break-all">{item.matchedPath}</p>}
+          </div>
         ))}
       </div>
       <p className="text-xs text-amber-700 mt-3">
-        Re-index automation is not enabled yet; open the checklist or copy the prompt for the next import step.
+        Open the checklist to resolve missing targets from GitHub, clear resolved items, or rerun Impact Analysis.
       </p>
     </div>
   );
@@ -260,7 +291,7 @@ export default function ProjectDetail() {
       </div>
 
       <ImportMetadataCard project={project} />
-      <MissingContextQueueCard project={project} projectId={id} queue={missingContextQueue} onClear={() => setMissingContextQueue([])} />
+      <MissingContextQueueCard project={project} projectId={id} queue={missingContextQueue} files={files} onClear={() => setMissingContextQueue([])} />
       <CodeRelationsCard files={files} />
 
       <div className="grid lg:grid-cols-2 gap-6">
