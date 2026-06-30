@@ -3,6 +3,20 @@ import { Send, AlertTriangle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { base44 } from "@/api/base44Client";
 import ReactMarkdown from "react-markdown";
+import { buildCodebaseQuestionPrompt } from "@/lib/codebaseUtils";
+
+async function answerWithCoreLLM(projectId, question) {
+  const [projects, files] = await Promise.all([
+    base44.entities.CodebaseProject.filter({ id: projectId }),
+    base44.entities.CodeFile.filter({ project_id: projectId }),
+  ]);
+
+  const project = projects[0];
+  const prompt = buildCodebaseQuestionPrompt({ project, files, question });
+  const answer = await base44.integrations.Core.InvokeLLM({ prompt });
+
+  return answer || "I could not generate a response from the available codebase context.";
+}
 
 export default function ChatBox({ projectId, messages, onNewMessage }) {
   const [input, setInput] = useState("");
@@ -24,16 +38,33 @@ export default function ChatBox({ projectId, messages, onNewMessage }) {
 
     setLoading(true);
     try {
-      const res = await base44.functions.invoke("codebaseChat", {
+      let answer = null;
+
+      try {
+        const res = await base44.functions.invoke("codebaseChat", {
+          project_id: projectId,
+          user_question: question,
+        });
+        answer = res.data?.answer || null;
+      } catch {
+        // Phase 1 intentionally works without a deployed custom backend function.
+        // This keeps the MVP small and lets Base44's built-in LLM integration answer from stored context.
+        answer = await answerWithCoreLLM(projectId, question);
+      }
+
+      const assistantMsg = {
         project_id: projectId,
-        user_question: question,
-      });
-      const answer = res.data?.answer || "Sorry, I couldn't generate a response.";
-      const assistantMsg = { project_id: projectId, role: "assistant", content: answer };
+        role: "assistant",
+        content: answer || "Sorry, I couldn't generate a response from the available context.",
+      };
       await base44.entities.CodebaseChatMessage.create(assistantMsg);
       onNewMessage({ ...assistantMsg, id: "temp-asst-" + Date.now() });
     } catch {
-      const errMsg = { project_id: projectId, role: "assistant", content: "An error occurred. Please try again." };
+      const errMsg = {
+        project_id: projectId,
+        role: "assistant",
+        content: "An error occurred while answering. The project may not have enough stored code context yet.",
+      };
       await base44.entities.CodebaseChatMessage.create(errMsg);
       onNewMessage({ ...errMsg, id: "temp-err-" + Date.now() });
     } finally {
