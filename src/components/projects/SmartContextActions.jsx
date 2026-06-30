@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Building2, Search } from "lucide-react";
+import { Building2, History, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function SmartContextActions({ projectId }) {
@@ -17,6 +17,12 @@ export default function SmartContextActions({ projectId }) {
         <Button variant="outline" size="sm" className="gap-2 cursor-pointer">
           <Building2 className="w-4 h-4" />
           Architecture
+        </Button>
+      </Link>
+      <Link to={`/project/${projectId}/risk-memory`}>
+        <Button variant="outline" size="sm" className="gap-2 cursor-pointer">
+          <History className="w-4 h-4" />
+          Risk Memory
         </Button>
       </Link>
     </div>
