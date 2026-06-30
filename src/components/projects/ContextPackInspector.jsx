@@ -29,6 +29,11 @@ function isInternalContextRelation(relation) {
   return relation?.target_kind === "internal_file" || Boolean(relation?.to_file);
 }
 
+function isSelectedFileRelation(relation, selectedPathSet) {
+  if (!relation || !selectedPathSet?.size) return false;
+  return selectedPathSet.has(relation.from_file) && Boolean(relation.to_file) && selectedPathSet.has(relation.to_file);
+}
+
 function suggestedMissingPath(importPath = "") {
   const value = String(importPath || "");
   if (value.startsWith("@/") || value.startsWith("~/")) {
@@ -110,7 +115,7 @@ function coverageBadgeClass(status) {
   return "bg-red-50 text-red-700 border-red-200";
 }
 
-function buildCopyText({ contextPack, selectedFiles, directChangedRelations, otherContextRelations, missingContextRelations, coverage, efficiency }) {
+function buildCopyText({ contextPack, selectedFiles, directChangedRelations, selectedContextRelations, missingContextRelations, coverage, efficiency }) {
   return `# Codebase Brain Context Pack Summary
 
 Selected files: ${selectedFiles.length}
@@ -136,8 +141,8 @@ ${uniqueMissingPathGuesses(missingContextRelations).length ? uniqueMissingPathGu
 ## Graph relations connected to changed files
 ${directChangedRelations.length ? directChangedRelations.map((relation) => `- ${relationLabel(relation)}`).join("\n") : "- None"}
 
-## Other selected context relations
-${otherContextRelations.length ? otherContextRelations.slice(0, 20).map((relation) => `- ${relationLabel(relation)}`).join("\n") : "- None"}`;
+## Relations among selected context files
+${selectedContextRelations.length ? selectedContextRelations.slice(0, 20).map((relation) => `- ${relationLabel(relation)}`).join("\n") : "- None"}`;
 }
 
 function RelationList({ title, relations = [], limit = 12 }) {
@@ -280,10 +285,15 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
   const warnings = contextPack.warnings || [];
   const efficiency = contextPack.efficiency || {};
   const changedSet = new Set(changedFiles || []);
+  const selectedPathSet = new Set(selectedFiles.map((file) => file.path).filter(Boolean));
   const changedConnectedRelations = selectedRelations.filter((relation) => isChangedFileRelation(relation, changedSet));
   const missingContextRelations = uniqueRelations(changedConnectedRelations.filter(isMissingContextRelation));
   const directChangedRelations = changedConnectedRelations.filter((relation) => !isMissingContextRelation(relation));
-  const otherContextRelations = selectedRelations.filter((relation) => !isChangedFileRelation(relation, changedSet) && !isMissingContextRelation(relation));
+  const selectedContextRelations = selectedRelations.filter((relation) =>
+    !isChangedFileRelation(relation, changedSet) &&
+    !isMissingContextRelation(relation) &&
+    isSelectedFileRelation(relation, selectedPathSet)
+  );
   const missingPathGuesses = uniqueMissingPathGuesses(missingContextRelations);
   const coverage = buildCoverageSummary(directChangedRelations, missingContextRelations);
   const queuedTargetSet = new Set(queuedTargets.map((item) => item.target).filter(Boolean));
@@ -291,7 +301,7 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
   const queueButtonActive = queued || allCurrentMissingTargetsQueued;
 
   const handleCopy = async () => {
-    const text = buildCopyText({ contextPack, selectedFiles, directChangedRelations, otherContextRelations, missingContextRelations, coverage, efficiency });
+    const text = buildCopyText({ contextPack, selectedFiles, directChangedRelations, selectedContextRelations, missingContextRelations, coverage, efficiency });
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
@@ -427,7 +437,7 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
         canQueue={Boolean(projectId)}
       />
       <RelationList title="Graph relations connected to changed files" relations={directChangedRelations} />
-      <RelationList title="Other selected context relations" relations={otherContextRelations} limit={8} />
+      <RelationList title="Relations among selected context files" relations={selectedContextRelations} limit={8} />
     </div>
   );
 }
