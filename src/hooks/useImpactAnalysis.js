@@ -25,6 +25,7 @@ import {
   fetchPublicGithubPrDiffWithFallback,
   optionalEntity,
 } from "@/lib/impactAnalysisRuntimeUtils";
+import { resolveContextDepthPreset } from "@/lib/contextRelevanceScoring";
 
 export function useImpactAnalysis(projectId) {
   const { toast } = useToast();
@@ -34,6 +35,7 @@ export function useImpactAnalysis(projectId) {
   const [prUrl, setPrUrl] = useState("");
   const [prMeta, setPrMeta] = useState(null);
   const [changeInput, setChangeInput] = useState("");
+  const [contextDepth, setContextDepth] = useState("balanced");
   const [result, setResult] = useState("");
   const [riskLevel, setRiskLevel] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -68,6 +70,7 @@ export function useImpactAnalysis(projectId) {
     return () => { cancelled = true; };
   }, [projectId]);
 
+  const depthPreset = useMemo(() => resolveContextDepthPreset(contextDepth), [contextDepth]);
   const changedFiles = useMemo(() => extractChangedFiles(changeInput), [changeInput]);
   const signals = useMemo(() => heuristicRiskSignals(changeInput, changedFiles), [changeInput, changedFiles]);
   const heuristicRisk = useMemo(() => initialRiskLevel(changeInput, changedFiles), [changeInput, changedFiles]);
@@ -77,8 +80,17 @@ export function useImpactAnalysis(projectId) {
   const compatibility = useMemo(() => compareProjectAndPrRepository(project, prMeta), [project, prMeta]);
   const contextPackPreview = useMemo(() => {
     if (!changeInput.trim() || files.length === 0) return null;
-    return buildContextPack({ project, files, relations: codeRelations, question: changeInput, changedFiles, diffText: changeInput, maxTokens: 12000 });
-  }, [project, files, codeRelations, changeInput, changedFiles]);
+    return buildContextPack({
+      project,
+      files,
+      relations: codeRelations,
+      question: changeInput,
+      changedFiles,
+      diffText: changeInput,
+      maxTokens: depthPreset.maxTokens,
+      depth: contextDepth,
+    });
+  }, [project, files, codeRelations, changeInput, changedFiles, depthPreset.maxTokens, contextDepth]);
 
   const handleFetchPr = async () => {
     if (!prUrl.trim()) {
@@ -130,7 +142,7 @@ export function useImpactAnalysis(projectId) {
       const preRelatedPaths = relatedPathsForChangedFiles(codeRelations, preChangedFiles);
       const riskMemoryText = formatRiskMemoryForPrompt(analyses, preChangedFiles, preRelatedPaths, preSignals);
       const projectRulesText = formatProjectRulesForPrompt(getProjectRulesForRuntime(projectId));
-      const payload = buildImpactAnalysisPrompt({ project, files, changeInput, relations: codeRelations, riskMemoryText, projectRulesText });
+      const payload = buildImpactAnalysisPrompt({ project, files, changeInput, relations: codeRelations, riskMemoryText, projectRulesText, contextDepth });
       const answer = await base44.integrations.Core.InvokeLLM({ prompt: payload.prompt });
       const calibrated = calibrateImpactAnalysisOutput({ text: answer || "No analysis was generated.", heuristicRisk: payload.heuristicRisk, signals: payload.signals, changeInput });
       setResult(calibrated.text);
@@ -154,6 +166,9 @@ export function useImpactAnalysis(projectId) {
     prMeta,
     changeInput,
     updateChangeInput,
+    contextDepth,
+    setContextDepth,
+    depthPreset,
     result,
     riskLevel,
     loading,
