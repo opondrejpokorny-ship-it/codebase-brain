@@ -86,12 +86,29 @@ export function selectRelevantFilesForImpact(files = [], changedFiles = [], chan
     .slice(0, limit);
 }
 
+function storedFileCoverage(files = [], changedFiles = []) {
+  const stored = new Set(files.map((file) => file.path));
+  const present = changedFiles.filter((file) => stored.has(file));
+  const missing = changedFiles.filter((file) => !stored.has(file));
+  return { present, missing };
+}
+
+function selectedFileReasons(contextPack) {
+  return contextPack.selectedFiles
+    .map((file) => {
+      const reasons = contextPack.reasons[file.path] || [];
+      return `- ${file.path}: ${reasons.join(" ") || "Selected by compact context pack."}`;
+    })
+    .join("\n");
+}
+
 export function buildImpactAnalysisPrompt({ project, files = [], changeInput = "", relations = null }) {
   const changedFiles = extractChangedFiles(changeInput);
   const codeRelations = relations || buildCodeRelations(files);
   const heuristicRisk = initialRiskLevel(changeInput, changedFiles, codeRelations);
   const signals = heuristicRiskSignals(changeInput, changedFiles);
   const relatedPaths = relatedPathsForChangedFiles(codeRelations, changedFiles);
+  const coverage = storedFileCoverage(files, changedFiles);
   const contextPack = buildContextPack({
     project,
     files,
@@ -102,6 +119,10 @@ export function buildImpactAnalysisPrompt({ project, files = [], changeInput = "
     maxTokens: 12000,
   });
 
+  const confirmedRelatedInstruction = relatedPaths.length
+    ? `Only these graph-confirmed related files may be listed as related files: ${relatedPaths.join(", ")}.`
+    : "No graph-confirmed related files were found. In the Related files section, say 'None confirmed by the current graph/context sample' and then optionally list selected context files separately as 'Context files reviewed'. Do not invent related files.";
+
   return {
     changedFiles,
     heuristicRisk,
@@ -110,7 +131,7 @@ export function buildImpactAnalysisPrompt({ project, files = [], changeInput = "
     relevantRelations: contextPack.selectedRelations,
     relevantFiles: contextPack.selectedFiles,
     contextPack,
-    prompt: `You are Codebase Brain, a careful senior engineer reviewing a PR/diff before merge.\n\nRules:\n- Answer only from the provided project context, selected files, submitted diff/change list, and graph relationships.\n- Do not claim you ran tests.\n- Always mention missing context.\n- Use concrete file paths.\n- Be practical and concise.\n\nReturn structured Markdown with exactly these sections:\n\n## Summary\nShort explanation of the change.\n\n## Risk level\nLow / Medium / High\n\n## Why this risk level\nBullet points.\n\n## Changed files\nList changed files.\n\n## Related files\nFiles selected by graph/context engine and why.\n\n## Affected flows\nUser-facing or backend flows that may be affected.\n\n## Main risks\nConcrete risks.\n\n## Recommended tests\nManual and automated tests to run.\n\n## Regression checklist\nStep-by-step checklist before merge.\n\n## Missing context\nWhat the system could not know from imported files.\n\n## Safe to merge?\nOne of:\n- Looks safe after listed checks\n- Needs review\n- High risk, do not merge without deeper review\n\nPROJECT:\nName: ${project?.name || "Unknown"}\nRepository URL: ${project?.repository_url || "Not provided"}\nDetected stack: ${(project?.detected_stack || []).join(", ") || "Unknown"}\n\nDETERMINISTIC PRE-SCAN:\nChanged files detected: ${changedFiles.length ? changedFiles.join(", ") : "None detected from input"}\nInitial heuristic risk: ${heuristicRisk}\nRisk signals: ${signals.length ? signals.join(", ") : "None"}\nRelated files from graph: ${relatedPaths.length ? relatedPaths.join(", ") : "None"}\nContext token estimate: selected ${contextPack.efficiency.selectedTokens}, full repo estimate ${contextPack.efficiency.fullRepoTokens}, estimated savings ${contextPack.efficiency.savingsPercent}%\n\nCOMPACT CONTEXT PACK:\n${formatContextPackForPrompt(contextPack)}\n\nSUBMITTED DIFF OR CHANGE LIST:\n${String(changeInput || "").slice(0, 15000)}`,
+    prompt: `You are Codebase Brain, a careful senior engineer reviewing a PR/diff before merge.\n\nRules:\n- Answer only from the provided project context, selected files, submitted diff/change list, and graph relationships.\n- Do not claim you ran tests.\n- Always mention missing context.\n- Use concrete file paths.\n- Be practical and concise.\n- Do not invent direct dependencies or related files. ${confirmedRelatedInstruction}\n- If a changed file is not present in the stored project sample, say so clearly in Missing context.\n\nReturn structured Markdown with exactly these sections:\n\n## Summary\nShort explanation of the change.\n\n## Risk level\nLow / Medium / High\n\n## Why this risk level\nBullet points.\n\n## Changed files\nList changed files. Mark files missing from stored context when applicable.\n\n## Related files\nOnly graph-confirmed related files. If none are confirmed, say none confirmed.\n\n## Context files reviewed\nList selected context files and why they were selected.\n\n## Affected flows\nUser-facing or backend flows that may be affected.\n\n## Main risks\nConcrete risks.\n\n## Recommended tests\nManual and automated tests to run.\n\n## Regression checklist\nStep-by-step checklist before merge.\n\n## Missing context\nWhat the system could not know from imported files.\n\n## Safe to merge?\nOne of:\n- Looks safe after listed checks\n- Needs review\n- High risk, do not merge without deeper review\n\nPROJECT:\nName: ${project?.name || "Unknown"}\nRepository URL: ${project?.repository_url || "Not provided"}\nDetected stack: ${(project?.detected_stack || []).join(", ") || "Unknown"}\n\nDETERMINISTIC PRE-SCAN:\nChanged files detected: ${changedFiles.length ? changedFiles.join(", ") : "None detected from input"}\nChanged files present in stored sample: ${coverage.present.length ? coverage.present.join(", ") : "None"}\nChanged files missing from stored sample: ${coverage.missing.length ? coverage.missing.join(", ") : "None"}\nInitial heuristic risk: ${heuristicRisk}\nRisk signals: ${signals.length ? signals.join(", ") : "None"}\nGraph-confirmed related files: ${relatedPaths.length ? relatedPaths.join(", ") : "None"}\nSelected context files reviewed:\n${selectedFileReasons(contextPack) || "None"}\nContext token estimate: selected ${contextPack.efficiency.selectedTokens}, full repo estimate ${contextPack.efficiency.fullRepoTokens}, estimated savings ${contextPack.efficiency.savingsPercent}%\n\nCOMPACT CONTEXT PACK:\n${formatContextPackForPrompt(contextPack)}\n\nSUBMITTED DIFF OR CHANGE LIST:\n${String(changeInput || "").slice(0, 15000)}`,
   };
 }
 
