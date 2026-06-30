@@ -14,7 +14,7 @@ import {
   extractProjectName,
   parsePastedCode,
 } from "@/lib/codebaseUtils";
-import { importPublicGithubRepository, PUBLIC_GITHUB_IMPORT_LIMITS } from "@/lib/githubImport";
+import { importPublicGithubRepository as importPublicGithubRepositoryClient, PUBLIC_GITHUB_IMPORT_LIMITS } from "@/lib/githubImport";
 
 function buildSummaryPrompt({ name, repoUrl, files, detectedStack, fallbackSummary }) {
   const filePreview = files
@@ -31,6 +31,27 @@ function dedupeFiles(files) {
     byPath.set(file.path, file);
   }
   return [...byPath.values()];
+}
+
+async function importPublicGithubRepository(repositoryUrl) {
+  try {
+    const res = await base44.functions.invoke("importPublicGithubRepository", {
+      repository_url: repositoryUrl,
+    });
+    const data = res?.data || res;
+    if (data?.error) throw new Error(data.error);
+    if (Array.isArray(data?.importedFiles)) return data;
+    throw new Error("Backend import returned an unexpected response.");
+  } catch (backendError) {
+    // Backend function may not be deployed yet in early Base44 previews.
+    // Keep a browser fallback so the MVP remains usable immediately.
+    const fallback = await importPublicGithubRepositoryClient(repositoryUrl);
+    return {
+      ...fallback,
+      source: "client_fallback_after_backend_error",
+      backendError: backendError?.message || String(backendError),
+    };
+  }
 }
 
 export default function AddRepository() {
@@ -81,7 +102,7 @@ export default function AddRepository() {
       });
 
       const importDescription = importMeta
-        ? `Imported ${importMeta.importedFiles.length}/${importMeta.attemptedFiles} public GitHub files from ${importMeta.repositoryFullName}.`
+        ? `Imported ${importMeta.importedFiles.length}/${importMeta.attemptedFiles} public GitHub files from ${importMeta.repositoryFullName}. Source: ${importMeta.source || "public import"}.`
         : trimmedRepoUrl
           ? `Repository: ${trimmedRepoUrl}`
           : "Pasted code project";
@@ -182,7 +203,7 @@ export default function AddRepository() {
                 disabled={saving}
               />
               <span>
-                Import a small public GitHub sample now. Limit: {PUBLIC_GITHUB_IMPORT_LIMITS.maxFiles} text files, max {Math.round(PUBLIC_GITHUB_IMPORT_LIMITS.maxFileBytes / 1000)} KB per file. Private repos and full GitHub App import come later.
+                Import a small public GitHub sample now. Limit: {PUBLIC_GITHUB_IMPORT_LIMITS.maxFiles} text files, max {Math.round(PUBLIC_GITHUB_IMPORT_LIMITS.maxFileBytes / 1000)} KB per file. Backend function is tried first; browser fallback keeps the MVP usable.
               </span>
             </label>
           </div>
