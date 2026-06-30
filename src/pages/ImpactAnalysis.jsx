@@ -21,6 +21,7 @@ import {
   initialRiskLevel,
 } from "@/lib/impactAnalysisUtils";
 import {
+  CURRENT_RISK_CALIBRATION_VERSION,
   createAnalysisHistoryRecord,
   formatRiskMemoryForPrompt,
   mergeAnalysisHistories,
@@ -40,6 +41,18 @@ const compatibilityStyles = {
   mismatch: "bg-red-50 text-red-700 border-red-200",
   unknown: "bg-amber-50 text-amber-700 border-amber-200",
 };
+
+function riskCalibrationBadge(analysis = {}) {
+  const version = Number(analysis.risk_calibration_version || analysis.riskCalibrationVersion || 1);
+  const calibrated = version >= CURRENT_RISK_CALIBRATION_VERSION;
+  return {
+    calibrated,
+    label: calibrated ? `calibrated v${version}` : "legacy calibration",
+    className: calibrated
+      ? "bg-blue-50 text-blue-700 border-blue-200"
+      : "bg-slate-50 text-slate-500 border-slate-200",
+  };
+}
 
 const exampleDiff = `diff --git a/src/lib/contextPackBuilder.js b/src/lib/contextPackBuilder.js
 --- a/src/lib/contextPackBuilder.js
@@ -510,21 +523,29 @@ export default function ImpactAnalysis() {
                 </Link>
               </div>
               <div className="space-y-2">
-                {analyses.slice(0, 6).map((analysis) => (
-                  <div key={analysis.id} className="border border-slate-100 rounded-lg p-3">
-                    <div className="flex items-center justify-between gap-2 mb-1">
-                      <Badge variant="outline" className={riskStyles[analysis.risk_level] || riskStyles.medium}>
-                        {analysis.risk_level || "medium"}
-                      </Badge>
-                      <span className="text-xs text-slate-400">
-                        {analysis.created_date ? new Date(analysis.created_date).toLocaleDateString() : ""}
-                      </span>
+                {analyses.slice(0, 6).map((analysis) => {
+                  const calibration = riskCalibrationBadge(analysis);
+                  return (
+                    <div key={analysis.id} className="border border-slate-100 rounded-lg p-3">
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <Badge variant="outline" className={riskStyles[analysis.risk_level] || riskStyles.medium}>
+                            {analysis.risk_level || "medium"}
+                          </Badge>
+                          <Badge variant="outline" className={calibration.className}>
+                            {calibration.label}
+                          </Badge>
+                        </div>
+                        <span className="text-xs text-slate-400 flex-shrink-0">
+                          {analysis.created_date ? new Date(analysis.created_date).toLocaleDateString() : ""}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 line-clamp-2">
+                        {(analysis.result || "").replace(/[#*_`]/g, "").slice(0, 160)}
+                      </p>
                     </div>
-                    <p className="text-xs text-slate-500 line-clamp-2">
-                      {(analysis.result || "").replace(/[#*_`]/g, "").slice(0, 160)}
-                    </p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
