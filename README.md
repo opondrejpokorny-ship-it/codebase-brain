@@ -17,7 +17,7 @@ A user can:
 7. view import metadata and warnings,
 8. view lightweight import/require relationships,
 9. ask questions about the stored codebase context,
-10. paste a diff or changed file list for manual impact analysis.
+10. paste a public GitHub PR URL, diff, or changed file list for impact analysis.
 
 ## What is included now
 
@@ -32,6 +32,7 @@ A user can:
 - Import metadata card on project detail
 - Code Graph Lite import/require relations
 - Manual PR / diff impact analysis enhanced with graph relations
+- Public GitHub PR diff fetch with backend-first flow and browser fallback
 - AI project summary through Base44 `Core.InvokeLLM`
 - AI chat over stored context with a safe phase-1 fallback
 - Documentation for next phases
@@ -59,9 +60,9 @@ Project Detail now shows lightweight relationships detected from stored files:
 
 This is deterministic and cheap. It does not use tree-sitter, LSP, embeddings, or a graph database yet.
 
-## Manual impact analysis
+## Impact analysis
 
-Open a project and click **Impact Analysis**. Paste a git diff, PR patch, or changed file list. The app performs a deterministic pre-scan, uses Code Graph Lite to find related files, selects relevant stored files, and asks AI for:
+Open a project and click **Impact Analysis**. Paste a public GitHub PR URL, git diff, PR patch, or changed file list. The app performs a deterministic pre-scan, uses Code Graph Lite to find related files, selects relevant stored files, and asks AI for:
 
 - summary,
 - risk level,
@@ -71,7 +72,15 @@ Open a project and click **Impact Analysis**. Paste a git diff, PR patch, or cha
 - questions before merge,
 - missing context.
 
-This does not run tests or inspect real GitHub PRs yet.
+Public PR fetch is still read-only and lightweight. It does not run tests, inspect CI logs, or comment on GitHub yet.
+
+## Public GitHub PR fetch limits
+
+- public PRs only,
+- max 90,000 diff characters,
+- max 100 changed files from the GitHub files API,
+- backend function is tried first,
+- browser fallback keeps the feature usable before backend deployment.
 
 ## What is intentionally not included yet
 
@@ -79,6 +88,7 @@ This does not run tests or inspect real GitHub PRs yet.
 - GitHub App installation
 - PR webhooks
 - PR comments
+- CI/check inspection
 - billing
 - teams
 - full persisted graph database
@@ -154,11 +164,12 @@ VITE_BASE44_APP_BASE_URL=https://your-app.base44.app
 - `docs/phase-3-import-observability.md`
 - `docs/phase-4-manual-impact-analysis.md`
 - `docs/phase-5-code-graph-lite.md`
+- `docs/phase-6-public-pr-fetch.md`
 - `docs/architecture.md`
 
 ## Next phases
 
-1. Public GitHub PR fetch by URL.
+1. Project/PR repository compatibility warning.
 2. GitHub App + private repo import + automated PR review.
 3. MCP server for Codex/Cursor/Claude Code.
 
