@@ -5,7 +5,7 @@ function normalize(value = "") {
   return String(value || "").toLowerCase().replace(/[^a-z0-9_./-]+/g, " ").trim();
 }
 
-function unique(values) {
+function unique(values = []) {
   return [...new Set(values.filter(Boolean))];
 }
 
@@ -61,10 +61,10 @@ export function heuristicRiskSignals(changeInput = "", changedFiles = []) {
   const checks = [
     { key: "core_context", label: "Core context routing or impact engine", pattern: /contextpack|context pack|context routing|compact context|selected context|impactanalysis|impact analysis|impact engine|codegraph|code graph|tokenbudget|risk level|related files/ },
     { key: "payments", label: "Payment or billing flow", pattern: /payment|billing|checkout|invoice|stripe|comgate|credit|membership|subscription|refund/ },
-    { key: "auth", label: "Authentication or authorization", pattern: /auth|login|logout|session|jwt|token|permission|role|admin|protectedroute/ },
+    { key: "auth", label: "Authentication or authorization", pattern: /auth|login|logout|session|jwt|permission|role|admin|protectedroute/ },
     { key: "database", label: "Database schema or persistence", pattern: /prisma|schema|migration|model|entity|database|db\b|sql|storage/ },
     { key: "api", label: "API or backend function", pattern: /api|route|endpoint|webhook|function|server|backend/ },
-    { key: "env", label: "Environment or secrets", pattern: /\.env|secret|api_key|apikey|token|credential|process\.env|deno\.env/ },
+    { key: "env", label: "Environment or secrets", pattern: /\.env|secret|api_key|apikey|credential|process\.env|deno\.env/ },
     { key: "routing", label: "Routing or navigation", pattern: /router|route|navigate|redirect|pathname|app\.jsx|layout/ },
     { key: "delete", label: "Deletion or destructive operation", pattern: /delete|remove|destroy|drop|truncate/ },
     { key: "validation", label: "Validation or guard logic changed", pattern: /validate|validation|required|guard|permission|role|if\s*\(|throw new error/ },
@@ -85,7 +85,7 @@ export function initialRiskLevel(changeInput = "", changedFiles = [], relations 
   const changedSet = new Set(changedFiles);
   const graphHits = relations.filter((relation) => changedSet.has(relation.from_file) || changedSet.has(relation.to_file)).length;
 
-  if (highSignals.length >= 2 || graphHits >= 8) return "high";
+  if (highSignals.length >= 2) return "high";
   if (coreEngineSignal || highSignals.length === 1 || signals.length >= 3 || changedFiles.length >= 12 || graphHits >= 3) return "medium";
   return "low";
 }
