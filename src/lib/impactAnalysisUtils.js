@@ -1,3 +1,5 @@
+import { buildCodeRelations, relatedPathsForChangedFiles } from "@/lib/codeGraphUtils";
+
 function normalize(value = "") {
   return String(value || "").toLowerCase().replace(/[^a-z0-9_./-]+/g, " ").trim();
 }
@@ -76,12 +78,15 @@ export function initialRiskLevel(changeInput = "", changedFiles = []) {
   return "low";
 }
 
-function scoreStoredFile(file, changedFiles, changeInput) {
+function scoreStoredFile(file, changedFiles, changeInput, relatedPaths = []) {
   const path = file.path || "";
   const normalizedPath = normalize(path);
   const normalizedBase = normalize(basename(path));
   const input = normalize(changeInput);
+  const related = new Set(relatedPaths.map(normalize));
   let score = 0;
+
+  if (related.has(normalizedPath)) score += 45;
 
   for (const changed of changedFiles) {
     const changedNorm = normalize(changed);
@@ -104,9 +109,9 @@ function scoreStoredFile(file, changedFiles, changeInput) {
   return score;
 }
 
-export function selectRelevantFilesForImpact(files = [], changedFiles = [], changeInput = "", limit = 10) {
+export function selectRelevantFilesForImpact(files = [], changedFiles = [], changeInput = "", limit = 10, relatedPaths = []) {
   return [...files]
-    .map((file) => ({ file, score: scoreStoredFile(file, changedFiles, changeInput) }))
+    .map((file) => ({ file, score: scoreStoredFile(file, changedFiles, changeInput, relatedPaths) }))
     .sort((a, b) => b.score - a.score || (a.file.size || 0) - (b.file.size || 0))
     .filter((entry, index) => entry.score > 0 || index < 4)
     .slice(0, limit)
@@ -117,7 +122,16 @@ export function buildImpactAnalysisPrompt({ project, files = [], changeInput = "
   const changedFiles = extractChangedFiles(changeInput);
   const heuristicRisk = initialRiskLevel(changeInput, changedFiles);
   const signals = heuristicRiskSignals(changeInput, changedFiles);
-  const relevantFiles = selectRelevantFilesForImpact(files, changedFiles, changeInput, 10);
+  const codeRelations = buildCodeRelations(files);
+  const relatedPaths = relatedPathsForChangedFiles(codeRelations, changedFiles);
+  const relevantFiles = selectRelevantFilesForImpact(files, changedFiles, changeInput, 10, relatedPaths);
+  const relevantRelations = codeRelations
+    .filter((relation) => changedFiles.includes(relation.from_file) || changedFiles.includes(relation.to_file) || relatedPaths.includes(relation.from_file) || relatedPaths.includes(relation.to_file))
+    .slice(0, 25);
+
+  const relationContext = relevantRelations.length
+    ? relevantRelations.map((relation) => `${relation.from_file} -> ${relation.to_file || relation.import_path} (${relation.relation_type}${relation.resolved ? ", resolved" : ", unresolved"})`).join("\n")
+    : "No relevant Code Graph Lite relations detected for the submitted changes.";
 
   const context = relevantFiles
     .map((file) => {
@@ -130,8 +144,10 @@ export function buildImpactAnalysisPrompt({ project, files = [], changeInput = "
     changedFiles,
     heuristicRisk,
     signals,
+    relatedPaths,
+    relevantRelations,
     relevantFiles,
-    prompt: `You are Codebase Brain, a careful senior engineer reviewing a manual PR/diff impact analysis.\n\nRules:\n- Answer only from the provided project context, stored files, and submitted diff/change list.\n- If context is incomplete, clearly say what is missing.\n- Do not claim you ran tests.\n- Prefer concrete file paths and specific risks.\n- Keep the answer practical and concise.\n\nReturn Markdown with exactly these sections:\n1. Summary\n2. Risk level\n3. Affected files / flows\n4. Main risks\n5. Recommended tests\n6. Questions before merge\n7. Missing context\n\nRisk level must be one of: low, medium, high.\n\nPROJECT:\nName: ${project?.name || "Unknown"}\nRepository URL: ${project?.repository_url || "Not provided"}\nDetected stack: ${(project?.detected_stack || []).join(", ") || "Unknown"}\nProject summary: ${project?.summary || "Not available"}\n\nHEURISTIC PRE-SCAN:\nChanged files detected: ${changedFiles.length ? changedFiles.join(", ") : "None detected from input"}\nInitial heuristic risk: ${heuristicRisk}\nRisk signals: ${signals.length ? signals.join(", ") : "None"}\n\nRELEVANT STORED FILE CONTEXT:\n${context || "No stored code files are available for this project."}\n\nSUBMITTED DIFF OR CHANGE LIST:\n${String(changeInput || "").slice(0, 15000)}`,
+    prompt: `You are Codebase Brain, a careful senior engineer reviewing a manual PR/diff impact analysis.\n\nRules:\n- Answer only from the provided project context, stored files, submitted diff/change list, and Code Graph Lite relationships.\n- If context is incomplete, clearly say what is missing.\n- Do not claim you ran tests.\n- Prefer concrete file paths and specific risks.\n- Keep the answer practical and concise.\n\nReturn Markdown with exactly these sections:\n1. Summary\n2. Risk level\n3. Affected files / flows\n4. Main risks\n5. Recommended tests\n6. Questions before merge\n7. Missing context\n\nRisk level must be one of: low, medium, high.\n\nPROJECT:\nName: ${project?.name || "Unknown"}\nRepository URL: ${project?.repository_url || "Not provided"}\nDetected stack: ${(project?.detected_stack || []).join(", ") || "Unknown"}\nProject summary: ${project?.summary || "Not available"}\n\nHEURISTIC PRE-SCAN:\nChanged files detected: ${changedFiles.length ? changedFiles.join(", ") : "None detected from input"}\nInitial heuristic risk: ${heuristicRisk}\nRisk signals: ${signals.length ? signals.join(", ") : "None"}\nRelated files from Code Graph Lite: ${relatedPaths.length ? relatedPaths.join(", ") : "None"}\n\nCODE GRAPH LITE RELATIONS:\n${relationContext}\n\nRELEVANT STORED FILE CONTEXT:\n${context || "No stored code files are available for this project."}\n\nSUBMITTED DIFF OR CHANGE LIST:\n${String(changeInput || "").slice(0, 15000)}`,
   };
 }
 
