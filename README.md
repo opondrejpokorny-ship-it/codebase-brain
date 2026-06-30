@@ -27,14 +27,16 @@ A user can:
 17. optionally store installed repository link metadata if the Base44 entity API is available,
 18. view installed repository links at `/github/repositories`,
 19. manually link installed repository metadata to a `CodebaseProject`,
-20. run a safe Base44 runtime diagnostics endpoint that reports capability presence without exposing secrets,
-21. run diagnostics from the app UI at `/diagnostics`.
+20. see private import readiness on project detail for URL-only projects,
+21. run dry-run installation token helper diagnostics without returning token values,
+22. run a safe Base44 runtime diagnostics endpoint that reports capability presence without exposing secrets,
+23. run diagnostics from the app UI at `/diagnostics`.
 
 ## What is included now
 
 - Dashboard with project list
 - Add Repository page
-- Project Detail page
+- Project Detail page with private import readiness wrapper
 - Installed GitHub Repositories page
 - File list
 - Basic stack detection
@@ -55,6 +57,8 @@ A user can:
 - Optional GitHub installation metadata adapter
 - Optional GitHub repository link metadata adapter
 - Manual repository-to-project linking UI
+- Private import readiness card
+- Dry-run GitHub installation token helper skeleton
 - Base44 runtime diagnostics function
 - Runtime Diagnostics UI
 - AI project summary through Base44 `Core.InvokeLLM`
@@ -85,6 +89,17 @@ When public import returns a likely access error such as `404`, `403`, `not foun
 - import metadata stores the failure reason,
 - the user can paste code manually,
 - full private import remains reserved for GitHub App/private access.
+
+## Private import readiness
+
+URL-only project details now show a private import readiness card.
+
+The card is informational only:
+
+- if the project is linked to an active `GitHubRepositoryLink`, it says the project is ready for a future private import phase,
+- if not, it links to `/github/repositories` and `/diagnostics`.
+
+It does not fetch private files, create tokens, or call GitHub.
 
 ## Code Graph Lite
 
@@ -223,6 +238,16 @@ It shows captured `GitHubRepositoryLink` rows and lets a user manually link a re
 
 It does not fetch files, create installation tokens, call GitHub APIs, or run AI analysis.
 
+## Installation token helper skeleton
+
+A dry-run-only helper exists:
+
+```txt
+base44/functions/githubInstallationTokenHelper/entry.ts
+```
+
+It validates whether `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, and an `installation_id` are present. It does not create or return token values yet.
+
 ## Base44 runtime diagnostics
 
 A safe diagnostics endpoint exists:
@@ -253,7 +278,7 @@ Use it after deploying Base44 functions to verify `GitHubWebhookDelivery`, `GitH
 
 - private repository file import
 - confirmed Base44 backend entity binding in deployed runtime
-- installation access token creation
+- non-dry-run installation access token creation
 - automatic PR analysis from webhooks
 - PR comments
 - CI/check inspection
@@ -343,6 +368,8 @@ VITE_BASE44_APP_BASE_URL=https://your-app.base44.app
 - `docs/phase-13-private-repo-url-only-fallback.md`
 - `docs/phase-14-repository-link-metadata-skeleton.md`
 - `docs/phase-15-installed-repositories-ui.md`
+- `docs/phase-16-private-import-readiness-card.md`
+- `docs/phase-17-installation-token-helper-skeleton.md`
 - `docs/github-app-review-safety-contract.md`
 - `docs/github-webhook-contract.md`
 - `docs/architecture.md`
@@ -350,11 +377,12 @@ VITE_BASE44_APP_BASE_URL=https://your-app.base44.app
 ## Next phases
 
 1. Run diagnostics in deployed Base44 runtime and confirm the entity API.
-2. If needed, replace the webhook persistence adapter with the official server-side Base44 entity API.
-3. Add private import readiness card to Project Detail.
-4. Implement installation access token creation for read-only private import.
-5. GitHub App + private repo import + automated internal PR analysis.
-6. MCP server for Codex/Cursor/Claude Code.
+2. Add a dry-run UI control for `githubInstallationTokenHelper`.
+3. If needed, replace the webhook persistence adapter with the official server-side Base44 entity API.
+4. Implement backend-only installation token creation without exposing tokens to UI.
+5. Add read-only private repo import behind `GITHUB_PRIVATE_IMPORT_ENABLED`.
+6. GitHub App + private repo import + automated internal PR analysis.
+7. MCP server for Codex/Cursor/Claude Code.
 
 ## Base44 docs
 
