@@ -4,13 +4,11 @@ import { ArrowLeft, Check, ClipboardCopy, DownloadCloud, FileDiff, Loader2, Pack
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { base44 } from "@/api/base44Client";
-import { persistCodeRelationsIfAvailable } from "@/lib/codeRelationPersistence";
 import {
   queueItemForStorage,
-  resolveQueuedFilesFromPublicGitHub,
   resolveQueuedTarget,
 } from "@/lib/focusedGithubResolve";
-import { appendFocusedResolveMetadata, buildFocusedResolveRecord } from "@/lib/importMetadataUtils";
+import { runFocusedResolveWorkflow } from "@/lib/focusedResolveWorkflow";
 import {
   clearMissingContextQueue,
   formatMissingContextImportPrompt,
@@ -111,50 +109,24 @@ export default function MissingContextImportQueue() {
     setResolveError("");
 
     try {
-      const result = await resolveQueuedFilesFromPublicGitHub({
-        repositoryUrl: project?.repository_url || "",
+      const result = await runFocusedResolveWorkflow({
+        project,
         projectId: id,
+        files,
+        queue,
         resolvedQueue,
         storedPathSet,
       });
 
-      const createdFiles = [];
-      for (const file of result.filesToCreate) {
-        const created = await base44.entities.CodeFile.create(file);
-        createdFiles.push(created || file);
-      }
-
-      const nextFiles = [...files, ...createdFiles];
-      setFiles(nextFiles);
-
-      const resolveRecord = buildFocusedResolveRecord({
-        branch: result.branch,
-        createdFiles,
-        misses: result.misses,
-        queuedCount: queue.length,
-      });
-      const nextImportMetadata = appendFocusedResolveMetadata(project?.import_metadata || project?.importMetadata, resolveRecord);
-
-      try {
-        await base44.entities.CodebaseProject.update(id, {
-          status: createdFiles.length > 0 ? "indexed" : project?.status || "indexed",
-          import_metadata: nextImportMetadata,
-        });
-        setProject((prev) => ({ ...(prev || {}), status: createdFiles.length > 0 ? "indexed" : prev?.status, import_metadata: nextImportMetadata }));
-      } catch {
-        // The files are already visible even if project metadata update fails.
-      }
-
-      try {
-        if (createdFiles.length > 0) {
-          await persistCodeRelationsIfAvailable({ projectId: id, files: nextFiles });
-        }
-      } catch {
-        // Resolution should still be visible even if relation persistence fails.
-      }
+      setFiles(result.nextFiles);
+      setProject((prev) => ({
+        ...(prev || {}),
+        status: result.nextProjectStatus,
+        import_metadata: result.nextImportMetadata,
+      }));
 
       const missSuffix = result.misses.length ? ` ${result.misses.length} target${result.misses.length === 1 ? "" : "s"} still not found.` : "";
-      setResolveMessage(`Imported ${createdFiles.length} file${createdFiles.length === 1 ? "" : "s"} from ${result.branch}.${missSuffix}`);
+      setResolveMessage(`Imported ${result.createdFiles.length} file${result.createdFiles.length === 1 ? "" : "s"} from ${result.branch}.${missSuffix}`);
     } catch (error) {
       setResolveError(error?.message || "Failed to resolve queued targets from public GitHub.");
       setResolveMessage("");
