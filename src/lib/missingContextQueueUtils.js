@@ -24,6 +24,27 @@ function readAllMissingContextQueues() {
   return safeJsonParse(window.localStorage.getItem(MISSING_CONTEXT_QUEUE_KEY) || "{}", {});
 }
 
+async function persistQueueToProjectMetadata(projectId, queue = [], project = null) {
+  if (!projectId) return;
+  try {
+    let latestProject = project;
+    if (!latestProject) {
+      const projects = await base44.entities.CodebaseProject.filter({ id: projectId }).catch(() => []);
+      latestProject = projects?.[0] || null;
+    }
+    const metadata = importMetadataForProject(latestProject);
+    await base44.entities.CodebaseProject.update(projectId, {
+      import_metadata: {
+        ...metadata,
+        [MISSING_CONTEXT_QUEUE_METADATA_KEY]: queue,
+        missingContextQueueUpdatedAt: new Date().toISOString(),
+      },
+    });
+  } catch {
+    // localStorage remains the fallback queue store.
+  }
+}
+
 function normalizeQueueItem(item = {}) {
   if (!item?.target) return null;
   return {
@@ -45,10 +66,7 @@ export function normalizeMissingContextQueue(queue = []) {
 export function dedupeMissingContextQueue(queue = []) {
   const byTarget = new Map();
   for (const item of normalizeMissingContextQueue(queue)) {
-    byTarget.set(item.target, {
-      ...(byTarget.get(item.target) || {}),
-      ...item,
-    });
+    byTarget.set(item.target, { ...(byTarget.get(item.target) || {}), ...item });
   }
   return [...byTarget.values()].sort((a, b) => String(a.target).localeCompare(String(b.target)));
 }
@@ -78,14 +96,11 @@ export function readMissingContextQueueForProject(projectId, project = null) {
 export function readBestMissingContextQueue(projectId, project = null) {
   const projectQueue = readProjectMissingContextQueue(project);
   if (projectQueue.length > 0) return projectQueue;
-
   const direct = readMissingContextQueue(projectId);
   if (direct.length > 0) return direct;
-
   const all = readAllMissingContextQueues();
   const queues = Object.values(all).filter((queue) => Array.isArray(queue) && queue.length > 0);
   if (!queues.length) return [];
-
   return dedupeMissingContextQueue([...queues].sort((a, b) => b.length - a.length)[0] || []);
 }
 
@@ -94,26 +109,13 @@ export function writeMissingContextQueue(projectId, queue = []) {
   const all = readAllMissingContextQueues();
   all[projectId] = dedupeMissingContextQueue(queue);
   window.localStorage.setItem(MISSING_CONTEXT_QUEUE_KEY, JSON.stringify(all));
+  persistQueueToProjectMetadata(projectId, all[projectId]);
   return all[projectId];
 }
 
 export async function writePersistentMissingContextQueue(projectId, queue = [], project = null) {
   const nextQueue = writeMissingContextQueue(projectId, queue);
-  if (!projectId) return nextQueue;
-
-  try {
-    const metadata = importMetadataForProject(project);
-    await base44.entities.CodebaseProject.update(projectId, {
-      import_metadata: {
-        ...metadata,
-        [MISSING_CONTEXT_QUEUE_METADATA_KEY]: nextQueue,
-        missingContextQueueUpdatedAt: new Date().toISOString(),
-      },
-    });
-  } catch {
-    // localStorage remains the offline/fallback queue store.
-  }
-
+  await persistQueueToProjectMetadata(projectId, nextQueue, project);
   return nextQueue;
 }
 
@@ -127,15 +129,7 @@ export async function clearPersistentMissingContextQueue(projectId, project = nu
 
 export function missingContextQueueItem({ target, sourceFile = "", importPath = "", relationType = "missing_context", status = "queued", sourceAnalysisId = null } = {}) {
   if (!target) return null;
-  return normalizeQueueItem({
-    target,
-    source_file: sourceFile,
-    import_path: importPath,
-    relation_type: relationType,
-    status,
-    source_analysis_id: sourceAnalysisId,
-    added_at: new Date().toISOString(),
-  });
+  return normalizeQueueItem({ target, source_file: sourceFile, import_path: importPath, relation_type: relationType, status, source_analysis_id: sourceAnalysisId, added_at: new Date().toISOString() });
 }
 
 export function addMissingContextQueueItems(projectId, items = []) {
