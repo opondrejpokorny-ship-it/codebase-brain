@@ -1,0 +1,116 @@
+import { estimateTokensFromText } from "@/lib/tokenBudgetUtils";
+
+export const CONTEXT_DEPTH_PRESETS = {
+  minimal: { maxTokens: 6000, minPositiveFiles: 2, label: "Minimal" },
+  balanced: { maxTokens: 12000, minPositiveFiles: 4, label: "Balanced" },
+  deep: { maxTokens: 24000, minPositiveFiles: 8, label: "Deep" },
+};
+
+export const IMPORTANT_PATH_PATTERNS = [
+  /package\.json$/i,
+  /src\/api\//i,
+  /base44\/functions\//i,
+  /server|function|webhook/i,
+  /auth|login|session|permission|role|admin/i,
+  /payment|checkout|refund|credit|billing|subscription/i,
+  /schema|migration|database|db|entity/i,
+  /route|router|page/i,
+  /config|vite|next|tsconfig|jsconfig/i,
+];
+
+export const LOW_VALUE_PATTERNS = [
+  /\.lock$/i,
+  /package-lock\.json$/i,
+  /yarn\.lock$/i,
+  /pnpm-lock\.yaml$/i,
+  /snapshot/i,
+  /dist\//i,
+  /build\//i,
+  /coverage\//i,
+  /README\.md$/i,
+];
+
+export function normalizeForScoring(value = "") {
+  return String(value || "").toLowerCase();
+}
+
+export function queryWords(value = "") {
+  return [...new Set(normalizeForScoring(value).match(/[a-z0-9_.$/-]{3,}/g) || [])].slice(0, 40);
+}
+
+export function relationReason(relations = [], filePath = "", changedFiles = []) {
+  for (const changed of changedFiles) {
+    const direct = relations.find((relation) => relation.from_file === filePath && relation.to_file === changed);
+    if (direct) return `Selected because it imports changed file ${changed}.`;
+    const reverse = relations.find((relation) => relation.from_file === changed && relation.to_file === filePath);
+    if (reverse) return `Selected because changed file ${changed} imports it.`;
+  }
+  return null;
+}
+
+export function scoreContextFile({ file, questionWords = [], question = "", diffText = "", changedFiles = [], relatedPaths = [], relations = [] }) {
+  const path = file.path || "";
+  const content = file.content || "";
+  const normalizedPath = normalizeForScoring(path);
+  const normalizedContent = normalizeForScoring(content.slice(0, 12000));
+  const reasons = [];
+  let score = 0;
+
+  if (changedFiles.includes(path)) {
+    score += 120;
+    reasons.push("Selected because it is directly changed.");
+  }
+
+  if (relatedPaths.includes(path)) {
+    score += 70;
+    reasons.push(relationReason(relations, path, changedFiles) || "Selected because the graph connects it to a changed file.");
+  }
+
+  if (normalizeForScoring(question).includes(normalizedPath) || normalizeForScoring(diffText).includes(normalizedPath)) {
+    score += 80;
+    reasons.push("Selected because the path is mentioned in the question or diff.");
+  }
+
+  for (const word of questionWords) {
+    if (normalizedPath.includes(word)) {
+      score += 18;
+      reasons.push(`Selected because path matches “${word}”.`);
+    } else if (normalizedContent.includes(word)) {
+      score += 5;
+    }
+  }
+
+  if (IMPORTANT_PATH_PATTERNS.some((pattern) => pattern.test(path))) {
+    score += 25;
+    reasons.push("Selected because it is a high-signal project file or risky domain file.");
+  }
+
+  if (LOW_VALUE_PATTERNS.some((pattern) => pattern.test(path))) {
+    score -= 40;
+    reasons.push("Lower priority because it looks generated, lockfile, snapshot, or low-value documentation.");
+  }
+
+  const estimatedTokens = estimateTokensFromText(content);
+  if (estimatedTokens > 4000) {
+    score -= 20;
+    reasons.push("Lower priority because the file is large.");
+  }
+
+  return {
+    file,
+    score,
+    reasons: [...new Set(reasons)].slice(0, 4),
+    estimatedTokens,
+  };
+}
+
+export function scoreContextFiles(input = {}) {
+  const questionWords = queryWords(`${input.question || ""} ${input.diffText || ""}`);
+  return (input.files || [])
+    .map((file) => scoreContextFile({ ...input, file, questionWords }))
+    .sort((a, b) => b.score - a.score);
+}
+
+export function resolveContextDepthPreset(depth = "balanced") {
+  return CONTEXT_DEPTH_PRESETS[depth] || CONTEXT_DEPTH_PRESETS.balanced;
+}
