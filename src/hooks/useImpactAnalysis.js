@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useToast } from "@/components/ui/use-toast";
 import { buildCodeRelations, relatedPathsForChangedFiles, summarizeCodeGraph } from "@/lib/codeGraphUtils";
 import { buildContextPack } from "@/lib/contextPackBuilder";
-import { fetchPublicGithubPrDiffClient, formatPrDiffForImpactAnalysis } from "@/lib/githubPrUtils";
+import { formatPrDiffForImpactAnalysis } from "@/lib/githubPrUtils";
 import { compareProjectAndPrRepository } from "@/lib/repositoryCompatibilityUtils";
 import {
   buildImpactAnalysisPrompt,
@@ -20,55 +20,12 @@ import {
   writeLocalAnalysisRecord,
 } from "@/lib/analysisHistoryUtils";
 import { formatProjectRulesForPrompt, getProjectRulesForRuntime } from "@/lib/projectRulesUtils";
-
-export const exampleImpactDiff = `diff --git a/src/lib/contextPackBuilder.js b/src/lib/contextPackBuilder.js
---- a/src/lib/contextPackBuilder.js
-+++ b/src/lib/contextPackBuilder.js
-@@ -1,5 +1,8 @@
- export function buildContextPack(input) {
-+  // prefer graph-confirmed related files before keyword matches
-   return selectCompactContext(input);
- }
-
-src/pages/ImpactAnalysis.jsx`;
-
-function optionalEntity(entityName) {
-  try {
-    return base44?.entities?.[entityName] || null;
-  } catch {
-    return null;
-  }
-}
-
-function fallbackProjectFromFiles(projectId, storedFiles = []) {
-  if (!storedFiles.length) return null;
-  return {
-    id: projectId,
-    name: "Stored project context",
-    status: "indexed",
-    repository_url: null,
-    detected_stack: [],
-    summary: "Project metadata was not found, but stored files exist. Using available code context for impact analysis.",
-    metadata_missing: true,
-  };
-}
-
-async function fetchPublicGithubPrDiff(prUrl) {
-  try {
-    const response = await base44.functions.invoke("fetchPublicGithubPrDiff", { pr_url: prUrl });
-    const data = response?.data || response;
-    if (data?.error) throw new Error(data.error);
-    if (data?.diff) return data;
-    throw new Error("Backend PR fetch returned an unexpected response.");
-  } catch (backendError) {
-    const fallback = await fetchPublicGithubPrDiffClient(prUrl);
-    return {
-      ...fallback,
-      source: "client_fallback_after_backend_error",
-      backendError: backendError?.message || String(backendError),
-    };
-  }
-}
+import {
+  exampleImpactDiff,
+  fallbackProjectFromFiles,
+  fetchPublicGithubPrDiffWithFallback,
+  optionalEntity,
+} from "@/lib/impactAnalysisRuntimeUtils";
 
 export function useImpactAnalysis(projectId) {
   const { toast } = useToast();
@@ -95,9 +52,7 @@ export function useImpactAnalysis(projectId) {
           base44.entities.CodeFile.filter({ project_id: projectId }).catch(() => []),
         ]);
         const analysisEntity = optionalEntity("CodebaseAnalysis");
-        const storedAnalyses = analysisEntity?.filter
-          ? await analysisEntity.filter({ project_id: projectId }, "created_date", 20).catch(() => [])
-          : [];
+        const storedAnalyses = analysisEntity?.filter ? await analysisEntity.filter({ project_id: projectId }, "created_date", 20).catch(() => []) : [];
         const localAnalyses = readLocalAnalysisHistory(projectId);
 
         if (!cancelled) {
@@ -123,15 +78,7 @@ export function useImpactAnalysis(projectId) {
   const compatibility = useMemo(() => compareProjectAndPrRepository(project, prMeta), [project, prMeta]);
   const contextPackPreview = useMemo(() => {
     if (!changeInput.trim() || files.length === 0) return null;
-    return buildContextPack({
-      project,
-      files,
-      relations: codeRelations,
-      question: changeInput,
-      changedFiles,
-      diffText: changeInput,
-      maxTokens: 12000,
-    });
+    return buildContextPack({ project, files, relations: codeRelations, question: changeInput, changedFiles, diffText: changeInput, maxTokens: 12000 });
   }, [project, files, codeRelations, changeInput, changedFiles]);
 
   const handleFetchPr = async () => {
@@ -141,7 +88,7 @@ export function useImpactAnalysis(projectId) {
     }
     setFetchingPr(true);
     try {
-      const fetched = await fetchPublicGithubPrDiff(prUrl.trim());
+      const fetched = await fetchPublicGithubPrDiffWithFallback(prUrl.trim());
       setPrMeta(fetched);
       setChangeInput(formatPrDiffForImpactAnalysis(fetched));
       setResult("");
