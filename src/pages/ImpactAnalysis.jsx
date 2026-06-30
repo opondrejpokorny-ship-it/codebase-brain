@@ -25,7 +25,7 @@ import {
   readLocalAnalysisHistory,
   writeLocalAnalysisRecord,
 } from "@/lib/analysisHistoryUtils";
-import { formatProjectRulesForPrompt, readLocalProjectRules } from "@/lib/projectRulesUtils";
+import { formatProjectRulesForPrompt, getProjectRulesForRuntime } from "@/lib/projectRulesUtils";
 
 const riskStyles = {
   low: "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -193,7 +193,7 @@ export default function ImpactAnalysis() {
       const preSignals = heuristicRiskSignals(changeInput, preChangedFiles);
       const preRelatedPaths = relatedPathsForChangedFiles(codeRelations, preChangedFiles);
       const riskMemoryText = formatRiskMemoryForPrompt(analyses, preChangedFiles, preRelatedPaths, preSignals);
-      const projectRulesText = formatProjectRulesForPrompt(readLocalProjectRules(id));
+      const projectRulesText = formatProjectRulesForPrompt(getProjectRulesForRuntime(id));
       const payload = buildImpactAnalysisPrompt({ project, files, changeInput, relations: codeRelations, riskMemoryText, projectRulesText });
       const answer = await base44.integrations.Core.InvokeLLM({ prompt: payload.prompt });
       const rawAnswer = answer || "No analysis was generated.";
