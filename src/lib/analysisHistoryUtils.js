@@ -23,10 +23,14 @@ function normalizeList(value) {
   return [];
 }
 
+function escapeRegExp(value = "") {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 export function extractMarkdownSection(markdown = "", heading = "") {
   const text = String(markdown || "");
   if (!heading) return "";
-  const pattern = new RegExp(`^##\\s+${heading.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}\\s*$`, "im");
+  const pattern = new RegExp(`^##\\s+${escapeRegExp(heading)}\\s*$`, "im");
   const match = text.match(pattern);
   if (!match || typeof match.index !== "number") return "";
 
