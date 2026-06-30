@@ -3,12 +3,14 @@ import { Check, ClipboardCopy, FileText, GitBranch, Info, PackageSearch, Triangl
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  addMissingContextQueueItems,
-  clearMissingContextQueue,
   formatMissingContextQueue,
   missingContextQueueItem,
-  readMissingContextQueue,
+  readMissingContextQueueForProject,
 } from "@/lib/missingContextQueueUtils";
+import {
+  addPersistentMissingContextQueueItems,
+  clearPersistentMissingContextQueue,
+} from "@/lib/persistentMissingContextQueue";
 import { formatEstimatedTokens } from "@/lib/tokenBudgetUtils";
 
 function relationLabel(relation) {
@@ -36,9 +38,7 @@ function isSelectedFileRelation(relation, selectedPathSet) {
 
 function suggestedMissingPath(importPath = "") {
   const value = String(importPath || "");
-  if (value.startsWith("@/") || value.startsWith("~/")) {
-    return `src/${value.slice(2)}`;
-  }
+  if (value.startsWith("@/") || value.startsWith("~/")) return `src/${value.slice(2)}`;
   if (value.startsWith("src/")) return value;
   return value;
 }
@@ -56,18 +56,12 @@ function missingContextLabel(relation) {
 }
 
 function queueItemFromRelation(relation) {
-  const target = bestMissingPathGuess(relation);
   return missingContextQueueItem({
-    target,
+    target: bestMissingPathGuess(relation),
     sourceFile: relation?.from_file || "",
     importPath: relation?.import_path || "",
     relationType: relation?.relation_type || "missing_context",
   });
-}
-
-function addMissingTargetsToQueue(projectId, relations = []) {
-  const items = relations.map(queueItemFromRelation).filter(Boolean);
-  return addMissingContextQueueItems(projectId, items);
 }
 
 function uniqueRelations(relations = []) {
@@ -94,19 +88,11 @@ function buildCoverageSummary(directChangedRelations = [], missingContextRelatio
   const missing = missingContextRelations.length;
   const total = resolvedInternal + missing;
   const score = total ? Math.round((resolvedInternal / total) * 100) : 100;
-
   let status = "complete";
   if (score < 50) status = "low";
   else if (score < 80) status = "partial";
   else if (score < 100) status = "good";
-
-  return {
-    status,
-    score,
-    resolvedInternal,
-    missing,
-    total,
-  };
+  return { status, score, resolvedInternal, missing, total };
 }
 
 function coverageBadgeClass(status) {
@@ -147,7 +133,6 @@ ${selectedContextRelations.length ? selectedContextRelations.slice(0, 20).map((r
 
 function RelationList({ title, relations = [], limit = 12 }) {
   if (!relations.length) return null;
-
   return (
     <div className="mt-4 pt-4 border-t border-slate-100">
       <p className="text-xs font-medium text-slate-700 flex items-center gap-1.5 mb-2">
@@ -160,9 +145,7 @@ function RelationList({ title, relations = [], limit = 12 }) {
             {relationLabel(relation)}
           </p>
         ))}
-        {relations.length > limit && (
-          <p className="text-xs text-slate-400">+{relations.length - limit} more relations</p>
-        )}
+        {relations.length > limit && <p className="text-xs text-slate-400">+{relations.length - limit} more relations</p>}
       </div>
     </div>
   );
@@ -174,18 +157,12 @@ function CoverageCard({ coverage }) {
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-medium text-slate-700">Context coverage</p>
-          <p className="text-xs text-slate-500 mt-1">
-            Resolved internal imports from changed files: {coverage.resolvedInternal}/{coverage.total}
-          </p>
+          <p className="text-xs text-slate-500 mt-1">Resolved internal imports from changed files: {coverage.resolvedInternal}/{coverage.total}</p>
         </div>
-        <Badge variant="outline" className={coverageBadgeClass(coverage.status)}>
-          {coverage.status} · {coverage.score}%
-        </Badge>
+        <Badge variant="outline" className={coverageBadgeClass(coverage.status)}>{coverage.status} · {coverage.score}%</Badge>
       </div>
       {coverage.missing > 0 && (
-        <p className="text-xs text-amber-700 mt-2">
-          {coverage.missing} direct import target{coverage.missing === 1 ? "" : "s"} missing from the stored sample.
-        </p>
+        <p className="text-xs text-amber-700 mt-2">{coverage.missing} direct import target{coverage.missing === 1 ? "" : "s"} missing from the stored sample.</p>
       )}
     </div>
   );
@@ -193,30 +170,23 @@ function CoverageCard({ coverage }) {
 
 function QueuedTargetsPanel({ queue = [], onCopyQueue, copiedQueue, onClearQueue }) {
   if (!queue.length) return null;
-
   return (
     <div className="mt-3 rounded-lg bg-white/70 border border-amber-100 p-3">
       <div className="flex items-start justify-between gap-2 mb-2">
         <div>
           <p className="text-xs font-medium text-amber-900">Queued import targets</p>
-          <p className="text-xs text-amber-700 mt-0.5">Ready for the next import or re-index step.</p>
+          <p className="text-xs text-amber-700 mt-0.5">Persisted to the project metadata when possible; localStorage remains the fallback.</p>
         </div>
         <div className="flex flex-wrap justify-end gap-1.5">
           <Button type="button" variant="outline" size="sm" onClick={onCopyQueue} className="h-7 gap-1.5 cursor-pointer text-xs bg-white/80">
             {copiedQueue ? <Check className="w-3 h-3" /> : <ClipboardCopy className="w-3 h-3" />}
             {copiedQueue ? "Copied" : "Copy queue"}
           </Button>
-          <Button type="button" variant="outline" size="sm" onClick={onClearQueue} className="h-7 cursor-pointer text-xs bg-white/80">
-            Clear queue
-          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={onClearQueue} className="h-7 cursor-pointer text-xs bg-white/80">Clear queue</Button>
         </div>
       </div>
       <div className="space-y-1 max-h-28 overflow-y-auto">
-        {queue.map((item) => (
-          <p key={item.target} className="text-xs font-mono text-amber-800 break-all">
-            {item.target}
-          </p>
-        ))}
+        {queue.map((item) => <p key={item.target} className="text-xs font-mono text-amber-800 break-all">{item.target}</p>)}
       </div>
     </div>
   );
@@ -224,7 +194,6 @@ function QueuedTargetsPanel({ queue = [], onCopyQueue, copiedQueue, onClearQueue
 
 function MissingContextList({ relations = [], onCopyPaths, copiedPaths, onAddToQueue, queued, queuedTargets, onCopyQueue, copiedQueue, onClearQueue, canQueue }) {
   if (!relations.length) return null;
-
   return (
     <div className="mt-4 rounded-lg bg-amber-50 border border-amber-100 p-3">
       <div className="flex items-start justify-between gap-2 mb-2">
@@ -245,38 +214,28 @@ function MissingContextList({ relations = [], onCopyPaths, copiedPaths, onAddToQ
           )}
         </div>
       </div>
-      <p className="text-xs text-amber-700 mb-2">
-        {relations.length} import target{relations.length === 1 ? "" : "s"} from changed files are missing from the stored sample. Add these files to improve graph coverage.
-      </p>
-      {queuedTargets.length > 0 && (
-        <p className="text-xs text-amber-800 mb-2">
-          {queuedTargets.length} target{queuedTargets.length === 1 ? "" : "s"} currently queued for the next import.
-        </p>
-      )}
+      <p className="text-xs text-amber-700 mb-2">{relations.length} import target{relations.length === 1 ? "" : "s"} from changed files are missing from the stored sample. Add these files to improve graph coverage.</p>
+      {queuedTargets.length > 0 && <p className="text-xs text-amber-800 mb-2">{queuedTargets.length} target{queuedTargets.length === 1 ? "" : "s"} currently queued for the next import.</p>}
       <div className="space-y-1 max-h-36 overflow-y-auto">
-        {relations.map((relation, index) => (
-          <p key={`${relation.from_file}-${relation.import_path}-${index}`} className="text-xs text-amber-700 break-all">
-            • {missingContextLabel(relation)}
-          </p>
-        ))}
+        {relations.map((relation, index) => <p key={`${relation.from_file}-${relation.import_path}-${index}`} className="text-xs text-amber-700 break-all">• {missingContextLabel(relation)}</p>)}
       </div>
       <QueuedTargetsPanel queue={queuedTargets} onCopyQueue={onCopyQueue} copiedQueue={copiedQueue} onClearQueue={onClearQueue} />
     </div>
   );
 }
 
-export default function ContextPackInspector({ contextPack, changedFiles = [], projectId = null }) {
+export default function ContextPackInspector({ contextPack, changedFiles = [], projectId = null, project = null }) {
   const [copied, setCopied] = useState(false);
   const [copiedPaths, setCopiedPaths] = useState(false);
   const [copiedQueue, setCopiedQueue] = useState(false);
   const [queued, setQueued] = useState(false);
-  const [queuedTargets, setQueuedTargets] = useState(() => readMissingContextQueue(projectId));
+  const [queuedTargets, setQueuedTargets] = useState(() => readMissingContextQueueForProject(projectId, project));
 
   useEffect(() => {
-    setQueuedTargets(readMissingContextQueue(projectId));
+    setQueuedTargets(readMissingContextQueueForProject(projectId, project));
     setQueued(false);
     setCopiedQueue(false);
-  }, [projectId]);
+  }, [projectId, project]);
 
   if (!contextPack) return null;
 
@@ -290,9 +249,7 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
   const missingContextRelations = uniqueRelations(changedConnectedRelations.filter(isMissingContextRelation));
   const directChangedRelations = changedConnectedRelations.filter((relation) => !isMissingContextRelation(relation));
   const selectedContextRelations = selectedRelations.filter((relation) =>
-    !isChangedFileRelation(relation, changedSet) &&
-    !isMissingContextRelation(relation) &&
-    isSelectedFileRelation(relation, selectedPathSet)
+    !isChangedFileRelation(relation, changedSet) && !isMissingContextRelation(relation) && isSelectedFileRelation(relation, selectedPathSet)
   );
   const missingPathGuesses = uniqueMissingPathGuesses(missingContextRelations);
   const coverage = buildCoverageSummary(directChangedRelations, missingContextRelations);
@@ -321,8 +278,9 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
     }
   };
 
-  const handleAddToQueue = () => {
-    const next = addMissingTargetsToQueue(projectId, missingContextRelations);
+  const handleAddToQueue = async () => {
+    const items = missingContextRelations.map(queueItemFromRelation).filter(Boolean);
+    const next = await addPersistentMissingContextQueueItems(projectId, items, project);
     setQueuedTargets(next);
     setQueued(true);
   };
@@ -337,8 +295,8 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
     }
   };
 
-  const handleClearQueue = () => {
-    const next = clearMissingContextQueue(projectId);
+  const handleClearQueue = async () => {
+    const next = await clearPersistentMissingContextQueue(projectId, project);
     setQueuedTargets(next);
     setQueued(false);
     setCopiedQueue(false);
@@ -352,14 +310,10 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
             <PackageSearch className="w-4 h-4 text-slate-500" />
             Context Pack Inspector
           </h3>
-          <p className="text-xs text-slate-400 mt-1">
-            Shows the actual files selected for this input and why they were included.
-          </p>
+          <p className="text-xs text-slate-400 mt-1">Shows the actual files selected for this input and why they were included.</p>
         </div>
         <div className="flex flex-col items-end gap-2 flex-shrink-0">
-          <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200">
-            {selectedFiles.length} files
-          </Badge>
+          <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200">{selectedFiles.length} files</Badge>
           <Button type="button" variant="outline" size="sm" onClick={handleCopy} className="h-8 gap-1.5 cursor-pointer text-xs">
             {copied ? <Check className="w-3.5 h-3.5" /> : <ClipboardCopy className="w-3.5 h-3.5" />}
             {copied ? "Copied" : "Copy summary"}
@@ -368,33 +322,17 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
       </div>
 
       <div className="grid grid-cols-3 gap-2 mb-4 text-xs">
-        <div className="rounded-md bg-slate-50 px-2 py-2">
-          <p className="text-slate-400">Selected</p>
-          <p className="font-semibold text-slate-700">{formatEstimatedTokens(efficiency.selectedTokens || contextPack.estimatedTokens || 0)}</p>
-        </div>
-        <div className="rounded-md bg-slate-50 px-2 py-2">
-          <p className="text-slate-400">Full repo</p>
-          <p className="font-semibold text-slate-700">{formatEstimatedTokens(efficiency.fullRepoTokens || 0)}</p>
-        </div>
-        <div className="rounded-md bg-emerald-50 px-2 py-2">
-          <p className="text-emerald-500">Saved</p>
-          <p className="font-semibold text-emerald-700">{efficiency.savingsPercent || 0}%</p>
-        </div>
+        <div className="rounded-md bg-slate-50 px-2 py-2"><p className="text-slate-400">Selected</p><p className="font-semibold text-slate-700">{formatEstimatedTokens(efficiency.selectedTokens || contextPack.estimatedTokens || 0)}</p></div>
+        <div className="rounded-md bg-slate-50 px-2 py-2"><p className="text-slate-400">Full repo</p><p className="font-semibold text-slate-700">{formatEstimatedTokens(efficiency.fullRepoTokens || 0)}</p></div>
+        <div className="rounded-md bg-emerald-50 px-2 py-2"><p className="text-emerald-500">Saved</p><p className="font-semibold text-emerald-700">{efficiency.savingsPercent || 0}%</p></div>
       </div>
 
       <CoverageCard coverage={coverage} />
 
       {warnings.length > 0 && (
         <div className="mb-4 rounded-lg bg-amber-50 border border-amber-100 p-3">
-          <p className="text-xs font-medium text-amber-800 flex items-center gap-1.5 mb-2">
-            <TriangleAlert className="w-3.5 h-3.5" />
-            Context warnings
-          </p>
-          <div className="space-y-1">
-            {warnings.map((warning) => (
-              <p key={warning} className="text-xs text-amber-700">• {warning}</p>
-            ))}
-          </div>
+          <p className="text-xs font-medium text-amber-800 flex items-center gap-1.5 mb-2"><TriangleAlert className="w-3.5 h-3.5" />Context warnings</p>
+          <div className="space-y-1">{warnings.map((warning) => <p key={warning} className="text-xs text-amber-700">• {warning}</p>)}</div>
         </div>
       )}
 
@@ -408,17 +346,8 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
                 <p className="text-xs font-mono text-slate-800 break-all">{file.path}</p>
               </div>
               {reasons.length > 0 ? (
-                <div className="space-y-1">
-                  {reasons.map((reason) => (
-                    <p key={reason} className="text-xs text-slate-500 flex gap-1.5">
-                      <Info className="w-3 h-3 text-slate-300 mt-0.5 flex-shrink-0" />
-                      <span>{reason}</span>
-                    </p>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-slate-400">No explicit selection reason captured.</p>
-              )}
+                <div className="space-y-1">{reasons.map((reason) => <p key={reason} className="text-xs text-slate-500 flex gap-1.5"><Info className="w-3 h-3 text-slate-300 mt-0.5 flex-shrink-0" /><span>{reason}</span></p>)}</div>
+              ) : <p className="text-xs text-slate-400">No explicit selection reason captured.</p>}
             </div>
           );
         })}
