@@ -48,6 +48,7 @@ export function heuristicRiskSignals(changeInput = "", changedFiles = []) {
   const signals = [];
 
   const checks = [
+    { key: "core_context", label: "Core context routing or impact engine", pattern: /contextpack|context pack|context routing|compact context|selected context|impactanalysis|impact analysis|impact engine|codegraph|code graph|tokenbudget|risk level|related files/ },
     { key: "payments", label: "Payment or billing flow", pattern: /payment|billing|checkout|invoice|stripe|comgate|credit|membership|subscription|refund/ },
     { key: "auth", label: "Authentication or authorization", pattern: /auth|login|logout|session|jwt|token|permission|role|admin|protectedroute/ },
     { key: "database", label: "Database schema or persistence", pattern: /prisma|schema|migration|model|entity|database|db\b|sql|storage/ },
@@ -69,11 +70,12 @@ export function heuristicRiskSignals(changeInput = "", changedFiles = []) {
 export function initialRiskLevel(changeInput = "", changedFiles = [], relations = []) {
   const signals = heuristicRiskSignals(changeInput, changedFiles);
   const highSignals = signals.filter((signal) => /Payment|Authentication|Database|Environment|Deletion/.test(signal));
+  const coreEngineSignal = signals.some((signal) => /Core context routing/.test(signal));
   const changedSet = new Set(changedFiles);
   const graphHits = relations.filter((relation) => changedSet.has(relation.from_file) || changedSet.has(relation.to_file)).length;
 
   if (highSignals.length >= 2 || graphHits >= 8) return "high";
-  if (highSignals.length === 1 || signals.length >= 3 || changedFiles.length >= 12 || graphHits >= 3) return "medium";
+  if (coreEngineSignal || highSignals.length === 1 || signals.length >= 3 || changedFiles.length >= 12 || graphHits >= 3) return "medium";
   return "low";
 }
 
