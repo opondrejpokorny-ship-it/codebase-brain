@@ -18,6 +18,11 @@ export function buildImpactAnalysisHistoryRecord({ projectId, prMeta, compatibil
     relevantRelations: payload.relevantRelations.map((relation) => `${relation.from_file}->${relation.to_file || relation.import_path}`),
     relevantFiles: payload.relevantFiles.map((file) => file.path),
     contextPack: payload.contextPack,
+    contextDepth: payload.contextPack?.depth || "balanced",
+    contextDepthPreset: payload.contextPack?.depthPreset || "Balanced",
+    contextSelectedTokens: payload.contextPack?.efficiency?.selectedTokens || payload.contextPack?.estimatedTokens || null,
+    contextFullRepoTokens: payload.contextPack?.efficiency?.fullRepoTokens || null,
+    contextSavingsPercent: payload.contextPack?.efficiency?.savingsPercent || null,
     repositoryCompatibility: prMeta ? compatibility : null,
     prMetadata: prMeta ? {
       repositoryFullName: prMeta.repositoryFullName,
