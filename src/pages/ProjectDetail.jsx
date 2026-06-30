@@ -23,6 +23,7 @@ import {
 const statusStyles = {
   draft: "bg-amber-50 text-amber-700 border-amber-200",
   indexed: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  url_only: "bg-blue-50 text-blue-700 border-blue-200",
   error: "bg-red-50 text-red-700 border-red-200",
 };
 
@@ -179,7 +180,7 @@ export default function ProjectDetail() {
             <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
               <Layers className="w-8 h-8 text-slate-300 mx-auto mb-2" />
               <p className="text-sm text-slate-500">No files indexed yet.</p>
-              <p className="text-xs text-slate-400 mt-1">Paste code when creating the project to populate files.</p>
+              <p className="text-xs text-slate-400 mt-1">Paste code when creating the project or enable private repository access later.</p>
             </div>
           ) : (
             <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
