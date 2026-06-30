@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Brain, Loader2, ServerCog, GitBranch } from "lucide-react";
+import { Plus, Brain, Loader2, ServerCog, GitBranch, FileDiff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { base44 } from "@/api/base44Client";
 import ProjectCard from "@/components/projects/ProjectCard";
@@ -27,6 +27,12 @@ export default function Home() {
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2">
+          <Link to="/impact">
+            <Button variant="outline" className="cursor-pointer gap-2 w-full sm:w-auto">
+              <FileDiff className="w-4 h-4" />
+              Impact Analysis
+            </Button>
+          </Link>
           <Link to="/github/repositories">
             <Button variant="outline" className="cursor-pointer gap-2 w-full sm:w-auto">
               <GitBranch className="w-4 h-4" />
