@@ -2,6 +2,7 @@
 // Read-only. Returns structured JSON. No GitHub writes.
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+declare const Deno: any;
 type JsonMap = Record<string, any>;
 
 const corsHeaders: Record<string, string> = {
