@@ -7,13 +7,44 @@ function relationLabel(relation) {
   return `${relation.from_file} ${relation.relation_type} ${relation.import_path}${relation.to_file ? ` → ${relation.to_file}` : ""}`;
 }
 
-export default function ContextPackInspector({ contextPack }) {
+function isChangedFileRelation(relation, changedSet) {
+  if (!relation || changedSet.size === 0) return false;
+  return changedSet.has(relation.from_file) || (relation.to_file && changedSet.has(relation.to_file));
+}
+
+function RelationList({ title, relations = [], limit = 12 }) {
+  if (!relations.length) return null;
+
+  return (
+    <div className="mt-4 pt-4 border-t border-slate-100">
+      <p className="text-xs font-medium text-slate-700 flex items-center gap-1.5 mb-2">
+        <GitBranch className="w-3.5 h-3.5 text-slate-400" />
+        {title}
+      </p>
+      <div className="space-y-1 max-h-32 overflow-y-auto">
+        {relations.slice(0, limit).map((relation, index) => (
+          <p key={`${relation.from_file}-${relation.import_path}-${index}`} className="text-xs font-mono text-slate-500 break-all">
+            {relationLabel(relation)}
+          </p>
+        ))}
+        {relations.length > limit && (
+          <p className="text-xs text-slate-400">+{relations.length - limit} more relations</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function ContextPackInspector({ contextPack, changedFiles = [] }) {
   if (!contextPack) return null;
 
   const selectedFiles = contextPack.selectedFiles || [];
   const selectedRelations = contextPack.selectedRelations || [];
   const warnings = contextPack.warnings || [];
   const efficiency = contextPack.efficiency || {};
+  const changedSet = new Set(changedFiles || []);
+  const directChangedRelations = selectedRelations.filter((relation) => isChangedFileRelation(relation, changedSet));
+  const otherContextRelations = selectedRelations.filter((relation) => !isChangedFileRelation(relation, changedSet));
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-5">
@@ -24,7 +55,7 @@ export default function ContextPackInspector({ contextPack }) {
             Context Pack Inspector
           </h3>
           <p className="text-xs text-slate-400 mt-1">
-            Shows which files were selected for AI context and why.
+            Shows the actual files selected for this input and why they were included.
           </p>
         </div>
         <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 flex-shrink-0">
@@ -87,24 +118,8 @@ export default function ContextPackInspector({ contextPack }) {
         })}
       </div>
 
-      {selectedRelations.length > 0 && (
-        <div className="mt-4 pt-4 border-t border-slate-100">
-          <p className="text-xs font-medium text-slate-700 flex items-center gap-1.5 mb-2">
-            <GitBranch className="w-3.5 h-3.5 text-slate-400" />
-            Selected graph relations
-          </p>
-          <div className="space-y-1 max-h-32 overflow-y-auto">
-            {selectedRelations.slice(0, 12).map((relation, index) => (
-              <p key={`${relation.from_file}-${relation.import_path}-${index}`} className="text-xs font-mono text-slate-500 break-all">
-                {relationLabel(relation)}
-              </p>
-            ))}
-            {selectedRelations.length > 12 && (
-              <p className="text-xs text-slate-400">+{selectedRelations.length - 12} more relations</p>
-            )}
-          </div>
-        </div>
-      )}
+      <RelationList title="Graph relations connected to changed files" relations={directChangedRelations} />
+      <RelationList title="Other selected context relations" relations={otherContextRelations} limit={8} />
     </div>
   );
 }
