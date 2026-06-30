@@ -115,6 +115,75 @@ function selectedFileReasons(contextPack) {
     .join("\n");
 }
 
+function isMissingContextRelation(relation) {
+  return relation?.relation_type === "alias_unresolved" || relation?.relation_type === "unresolved_relative";
+}
+
+function isInternalContextRelation(relation) {
+  return relation?.target_kind === "internal_file" || Boolean(relation?.to_file);
+}
+
+function isChangedFileRelation(relation, changedSet) {
+  if (!relation || changedSet.size === 0) return false;
+  return changedSet.has(relation.from_file) || (relation.to_file && changedSet.has(relation.to_file));
+}
+
+function suggestedMissingPath(importPath = "") {
+  const value = String(importPath || "");
+  if (value.startsWith("@/") || value.startsWith("~/")) return `src/${value.slice(2)}`;
+  if (value.startsWith("src/")) return value;
+  return value;
+}
+
+function missingContextLabel(relation) {
+  const target = suggestedMissingPath(relation?.import_path || "");
+  const suffix = target
+    ? `try ${target}.{js,jsx,ts,tsx} or ${target}/index.{js,jsx,ts,tsx}`
+    : "target path could not be inferred";
+  return `${relation.from_file} imports ${relation.import_path} -> missing from stored context; ${suffix}`;
+}
+
+function uniqueRelations(relations = []) {
+  const seen = new Set();
+  return relations.filter((relation) => {
+    const key = `${relation.from_file}|${relation.relation_type}|${relation.import_path}|${relation.to_file || ""}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function uniqueMissingTargets(relations = []) {
+  return [...new Set(relations.map((relation) => suggestedMissingPath(relation?.import_path || "")).filter(Boolean))];
+}
+
+function buildContextCoverageSummary(contextPack, changedFiles = []) {
+  const changedSet = new Set(changedFiles);
+  const selectedRelations = contextPack?.selectedRelations || [];
+  const changedConnectedRelations = selectedRelations.filter((relation) => isChangedFileRelation(relation, changedSet));
+  const missingContextRelations = uniqueRelations(changedConnectedRelations.filter(isMissingContextRelation));
+  const directChangedRelations = changedConnectedRelations.filter((relation) => !isMissingContextRelation(relation));
+  const resolvedInternal = directChangedRelations.filter(isInternalContextRelation).length;
+  const missing = missingContextRelations.length;
+  const total = resolvedInternal + missing;
+  const score = total ? Math.round((resolvedInternal / total) * 100) : 100;
+
+  let status = "complete";
+  if (score < 50) status = "low";
+  else if (score < 80) status = "partial";
+  else if (score < 100) status = "good";
+
+  return {
+    status,
+    score,
+    resolvedInternal,
+    missing,
+    total,
+    missingContextRelations,
+    missingTargets: uniqueMissingTargets(missingContextRelations),
+  };
+}
+
 export function concreteHighRiskTriggers(changeInput = "", signals = []) {
   const text = normalize(changeInput);
   const triggers = [];
@@ -148,10 +217,18 @@ export function buildImpactAnalysisPrompt({ project, files = [], changeInput = "
     diffText: changeInput,
     maxTokens: 12000,
   });
+  const contextCoverage = buildContextCoverageSummary(contextPack, changedFiles);
 
   const confirmedRelatedInstruction = relatedPaths.length
     ? `Only these graph-confirmed related files may be listed as related files: ${relatedPaths.join(", ")}.`
     : "No graph-confirmed related files were found. In the Related files section, say 'None confirmed by the current graph/context sample' and then optionally list selected context files separately as 'Context files reviewed'. Do not invent related files.";
+
+  const missingContextLines = contextCoverage.missingContextRelations.length
+    ? contextCoverage.missingContextRelations.map((relation) => `- ${missingContextLabel(relation)}`).join("\n")
+    : "None";
+  const missingTargetsLines = contextCoverage.missingTargets.length
+    ? contextCoverage.missingTargets.map((target) => `- ${target}`).join("\n")
+    : "None";
 
   return {
     changedFiles,
@@ -161,7 +238,113 @@ export function buildImpactAnalysisPrompt({ project, files = [], changeInput = "
     relevantRelations: contextPack.selectedRelations,
     relevantFiles: contextPack.selectedFiles,
     contextPack,
-    prompt: `You are Codebase Brain, a careful senior engineer reviewing a PR/diff before merge.\n\nRules:\n- Write the entire report in English only. Do not use Czech, Chinese, or any other language.\n- If the input or context contains non-English text, translate the meaning into English before writing the report.\n- Answer only from the provided project context, selected files, submitted diff/change list, graph relationships, risk memory, and project rules.\n- Treat project rules and ADRs as durable project constraints.\n- Do not claim you ran tests.\n- Always mention missing context.\n- Use concrete file paths.\n- Be practical and concise.\n- Do not invent direct dependencies or related files. ${confirmedRelatedInstruction}\n- If a changed file is not present in the stored project sample, say so clearly in Missing context.\n\nRisk calibration:\n- Treat the deterministic pre-scan risk as the baseline. Raise or lower it only when the selected context gives concrete evidence.\n- Risk memory is advisory only. It can justify extra attention, but it must not be the primary reason for High risk.\n- Older Risk Memory entries may come from earlier, less-calibrated analysis versions. Do not repeat historical High risk labels unless the current submitted change contains a concrete high-risk trigger.\n- Do not mark High risk only because a file is important, core, user-facing, connected to an external integration, or repeatedly seen in Risk Memory. Those are usually Medium unless there is a concrete high-risk trigger.\n- High risk requires specific evidence of at least one of these in the current submitted change: security/auth/permission breakage, payment/billing/refund impact, database migration or data loss, secrets/env leakage, destructive operations, production outage risk, breaking public API/contract changes, or broad changes across many unrelated areas.\n- Mentioning GitHub, Base44, API, context routing, or impact analysis is not enough for High risk by itself. Prefer Medium for core engine changes without a specific high-risk trigger.\n- If choosing High, the Why this risk level section must name the concrete high-risk trigger from the current submitted change.\n- If details are unknown, describe them in Missing context; do not inflate to High solely because context is missing or because past reports were High.\n\nReturn structured Markdown with exactly these sections:\n\n## Summary\nShort explanation of the change.\n\n## Risk level\nLow / Medium / High\n\n## Why this risk level\nBullet points.\n\n## Changed files\nList changed files. Mark files missing from stored context when applicable.\n\n## Related files\nOnly graph-confirmed related files. If none are confirmed, say none confirmed.\n\n## Context files reviewed\nList selected context files and why they were selected.\n\n## Risk memory influence\nExplain whether previous analyses mention the same changed files, related files, risk signals, or recommended tests. If there is no history, say no previous analysis history is available. Do not overstate this section.\n\n## Project rules check\nCheck the submitted change against active project rules and ADRs. Say whether each relevant rule appears satisfied, potentially violated, or cannot be evaluated from the available context.\n\n## Affected flows\nUser-facing or backend flows that may be affected.\n\n## Main risks\nConcrete risks.\n\n## Recommended tests\nManual and automated tests to run. Prefer tests that match repeated Risk Memory patterns when relevant and project rules when relevant.\n\n## Regression checklist\nStep-by-step checklist before merge.\n\n## Missing context\nWhat the system could not know from imported files.\n\n## Safe to merge?\nOne of:\n- Looks safe after listed checks\n- Needs review\n- High risk, do not merge without deeper review\n\nPROJECT:\nName: ${project?.name || "Unknown"}\nRepository URL: ${project?.repository_url || "Not provided"}\nDetected stack: ${(project?.detected_stack || []).join(", ") || "Unknown"}\n\nDETERMINISTIC PRE-SCAN:\nChanged files detected: ${changedFiles.length ? changedFiles.join(", ") : "None detected from input"}\nChanged files present in stored sample: ${coverage.present.length ? coverage.present.join(", ") : "None"}\nChanged files missing from stored sample: ${coverage.missing.length ? coverage.missing.join(", ") : "None"}\nInitial heuristic risk: ${heuristicRisk}\nRisk signals: ${signals.length ? signals.join(", ") : "None"}\nGraph-confirmed related files: ${relatedPaths.length ? relatedPaths.join(", ") : "None"}\nSelected context files reviewed:\n${selectedFileReasons(contextPack) || "None"}\nContext token estimate: selected ${contextPack.efficiency.selectedTokens}, full repo estimate ${contextPack.efficiency.fullRepoTokens}, estimated savings ${contextPack.efficiency.savingsPercent}%\n\nRISK MEMORY:\n${riskMemoryText || "No previous impact analyses are available for this project."}\n\nPROJECT RULES / ADR MEMORY:\n${projectRulesText || "No project rules or ADRs are available for this project."}\n\nCOMPACT CONTEXT PACK:\n${formatContextPackForPrompt(contextPack)}\n\nSUBMITTED DIFF OR CHANGE LIST:\n${String(changeInput || "").slice(0, 15000)}`,
+    contextCoverage,
+    prompt: `You are Codebase Brain, a careful senior engineer reviewing a PR/diff before merge.
+
+Rules:
+- Write the entire report in English only. Do not use Czech, Chinese, or any other language.
+- If the input or context contains non-English text, translate the meaning into English before writing the report.
+- Answer only from the provided project context, selected files, submitted diff/change list, graph relationships, risk memory, and project rules.
+- Treat project rules and ADRs as durable project constraints.
+- Do not claim you ran tests.
+- Always mention missing context.
+- Use concrete file paths.
+- Be practical and concise.
+- Do not invent direct dependencies or related files. ${confirmedRelatedInstruction}
+- If a changed file is not present in the stored project sample, say so clearly in Missing context.
+- If Context coverage below is not complete, the Missing context section must mention the coverage status, missing direct import targets, and suggested missing import targets. Do not say that no context is missing when Missing direct import targets is greater than 0.
+
+Risk calibration:
+- Treat the deterministic pre-scan risk as the baseline. Raise or lower it only when the selected context gives concrete evidence.
+- Risk memory is advisory only. It can justify extra attention, but it must not be the primary reason for High risk.
+- Older Risk Memory entries may come from earlier, less-calibrated analysis versions. Do not repeat historical High risk labels unless the current submitted change contains a concrete high-risk trigger.
+- Do not mark High risk only because a file is important, core, user-facing, connected to an external integration, or repeatedly seen in Risk Memory. Those are usually Medium unless there is a concrete high-risk trigger.
+- High risk requires specific evidence of at least one of these in the current submitted change: security/auth/permission breakage, payment/billing/refund impact, database migration or data loss, secrets/env leakage, destructive operations, production outage risk, breaking public API/contract changes, or broad changes across many unrelated areas.
+- Mentioning GitHub, Base44, API, context routing, or impact analysis is not enough for High risk by itself. Prefer Medium for core engine changes without a specific high-risk trigger.
+- If choosing High, the Why this risk level section must name the concrete high-risk trigger from the current submitted change.
+- If details are unknown, describe them in Missing context; do not inflate to High solely because context is missing or because past reports were High.
+
+Return structured Markdown with exactly these sections:
+
+## Summary
+Short explanation of the change.
+
+## Risk level
+Low / Medium / High
+
+## Why this risk level
+Bullet points.
+
+## Changed files
+List changed files. Mark files missing from stored context when applicable.
+
+## Related files
+Only graph-confirmed related files. If none are confirmed, say none confirmed.
+
+## Context files reviewed
+List selected context files and why they were selected.
+
+## Risk memory influence
+Explain whether previous analyses mention the same changed files, related files, risk signals, or recommended tests. If there is no history, say no previous analysis history is available. Do not overstate this section.
+
+## Project rules check
+Check the submitted change against active project rules and ADRs. Say whether each relevant rule appears satisfied, potentially violated, or cannot be evaluated from the available context.
+
+## Affected flows
+User-facing or backend flows that may be affected.
+
+## Main risks
+Concrete risks.
+
+## Recommended tests
+Manual and automated tests to run. Prefer tests that match repeated Risk Memory patterns when relevant and project rules when relevant.
+
+## Regression checklist
+Step-by-step checklist before merge.
+
+## Missing context
+What the system could not know from imported files. Include Context coverage and Missing direct import targets when provided.
+
+## Safe to merge?
+One of:
+- Looks safe after listed checks
+- Needs review
+- High risk, do not merge without deeper review
+
+PROJECT:
+Name: ${project?.name || "Unknown"}
+Repository URL: ${project?.repository_url || "Not provided"}
+Detected stack: ${(project?.detected_stack || []).join(", ") || "Unknown"}
+
+DETERMINISTIC PRE-SCAN:
+Changed files detected: ${changedFiles.length ? changedFiles.join(", ") : "None detected from input"}
+Changed files present in stored sample: ${coverage.present.length ? coverage.present.join(", ") : "None"}
+Changed files missing from stored sample: ${coverage.missing.length ? coverage.missing.join(", ") : "None"}
+Initial heuristic risk: ${heuristicRisk}
+Risk signals: ${signals.length ? signals.join(", ") : "None"}
+Graph-confirmed related files: ${relatedPaths.length ? relatedPaths.join(", ") : "None"}
+Selected context files reviewed:
+${selectedFileReasons(contextPack) || "None"}
+Context token estimate: selected ${contextPack.efficiency.selectedTokens}, full repo estimate ${contextPack.efficiency.fullRepoTokens}, estimated savings ${contextPack.efficiency.savingsPercent}%
+Context coverage: ${contextCoverage.status} · ${contextCoverage.score}%
+Resolved internal imports from changed files: ${contextCoverage.resolvedInternal}/${contextCoverage.total}
+Missing direct import targets: ${contextCoverage.missing}
+Missing context candidates:
+${missingContextLines}
+Suggested missing import targets:
+${missingTargetsLines}
+
+RISK MEMORY:
+${riskMemoryText || "No previous impact analyses are available for this project."}
+
+PROJECT RULES / ADR MEMORY:
+${projectRulesText || "No project rules or ADRs are available for this project."}
+
+COMPACT CONTEXT PACK:
+${formatContextPackForPrompt(contextPack)}
+
+SUBMITTED DIFF OR CHANGE LIST:
+${String(changeInput || "").slice(0, 15000)}`,
   };
 }
 
