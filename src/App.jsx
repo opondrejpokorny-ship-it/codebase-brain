@@ -15,7 +15,7 @@ import ResetPassword from '@/pages/ResetPassword';
 import Home from '@/pages/Home';
 import AddRepository from '@/pages/AddRepository';
 import ProjectDetailWithReadiness from '@/pages/ProjectDetailWithReadiness';
-import ImpactAnalysis from '@/pages/ImpactAnalysis';
+import ImpactAnalysisWithEfficiency from '@/pages/ImpactAnalysisWithEfficiency';
 import RuntimeDiagnostics from '@/pages/RuntimeDiagnostics';
 import InstalledRepositories from '@/pages/InstalledRepositories';
 import AppLayout from '@/components/layout/AppLayout';
@@ -53,7 +53,7 @@ const AuthenticatedApp = () => {
           <Route path="/diagnostics" element={<RuntimeDiagnostics />} />
           <Route path="/github/repositories" element={<InstalledRepositories />} />
           <Route path="/project/:id" element={<ProjectDetailWithReadiness />} />
-          <Route path="/project/:id/impact" element={<ImpactAnalysis />} />
+          <Route path="/project/:id/impact" element={<ImpactAnalysisWithEfficiency />} />
         </Route>
       </Route>
       <Route path="*" element={<PageNotFound />} />
