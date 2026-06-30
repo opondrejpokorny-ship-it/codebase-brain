@@ -1,43 +1,92 @@
-# Base44 Project
+# Codebase Brain
 
-Use this repository to run and edit the app locally, then publish changes back through Base44.
+Lightweight Base44 MVP for an AI codebase memory tool.
 
-Any change pushed to the repo will also be reflected in the Base44 Builder.
+The long-term product direction is inspired by modern codebase-memory tools: repository context, file summaries, structural understanding, PR impact analysis, and eventually MCP tools for coding agents. This repo starts much smaller so we can validate the core value without wasting credits.
 
-## Prerequisites
+## Phase 1 goal
 
-1. Clone the repository using the project's Git URL.
-2. Navigate to the project directory.
-3. Install dependencies: `npm install`.
-4. Install the Base44 CLI: `npm install -g base44@latest`.
+A user can:
 
-See the [Base44 CLI docs](https://docs.base44.com/developers/references/cli/get-started/overview) if you want to run Base44 commands directly.
+1. create a codebase project,
+2. add a GitHub repository URL or paste a small code sample,
+3. store parsed file records,
+4. detect a rough technology stack,
+5. generate a short project summary,
+6. ask questions about the stored codebase context.
 
-## Run Locally
+## What is included now
 
-Run the full local development environment from the project root:
+- Dashboard with project list
+- Add Repository page
+- Project Detail page
+- File list
+- Basic stack detection
+- Pasted-code parser
+- AI project summary through Base44 `Core.InvokeLLM`
+- AI chat over stored context with a safe phase-1 fallback
+- Documentation for next phases
+
+## What is intentionally not included yet
+
+- GitHub App
+- automatic private repo import
+- PR webhooks
+- PR comments
+- billing
+- teams
+- full code graph
+- MCP server
+- tree-sitter/LSP indexing
+- vector database
+
+## Pasted code format
+
+Preferred:
+
+```txt
+--- package.json ---
+{"dependencies":{"react":"latest","vite":"latest"}}
+
+--- src/App.jsx ---
+export default function App() {
+  return <div>Hello</div>;
+}
+```
+
+Also supported:
+
+```js
+// file: src/App.jsx
+export default function App() {
+  return <div>Hello</div>;
+}
+```
+
+## Local development
+
+### Prerequisites
+
+1. Clone the repository.
+2. Install dependencies:
+
+```bash
+npm install
+```
+
+3. Install the Base44 CLI if needed:
+
+```bash
+npm install -g base44@latest
+```
+
+### Run full Base44 local environment
 
 ```bash
 base44 dev
 ```
 
-`base44 dev` starts the local Base44 development backend and, when this app is configured for it, also starts the frontend dev server for you. Use the frontend URL printed by the command.
-
-For example, when the Base44 project config includes a `serveCommand`, `base44 dev` can launch the frontend too:
-
-```json5
-{
-  "site": {
-    "serveCommand": "npm run dev"
-  }
-}
-```
-
-In a Base44 project this lives in `base44/config.jsonc`.
-
-## Run Only The Frontend
-
-If you only want to work on the frontend against the hosted Base44 backend, run:
+### Run only the frontend
 
 ```bash
 npm run dev
@@ -45,33 +94,28 @@ npm run dev
 
 Open the local URL printed by Vite.
 
-## Use The Hosted Backend
-
-For frontend-only development, create or update `.env.local` in the project root:
+For frontend-only development against a hosted Base44 backend, create `.env.local`:
 
 ```bash
 VITE_BASE44_APP_ID=your_app_id
 VITE_BASE44_APP_BASE_URL=https://your-app.base44.app
 ```
 
-`VITE_BASE44_APP_ID` identifies the Base44 app.
+## Documentation
 
-`VITE_BASE44_APP_BASE_URL` tells the Base44 Vite plugin where to send local `/api` requests. Point it at your deployed Base44 app URL when you want the local frontend to use the hosted backend.
+- `docs/phase-1-scope.md`
+- `docs/architecture.md`
 
-When you use `base44 dev`, the command injects the local Base44 values for you, so `.env.local` is mainly needed for frontend-only workflows.
+## Next phases
 
-## Publish Your Changes
+1. Public GitHub repository import with strict limits.
+2. Manual PR/diff impact analysis.
+3. Code graph lite based on imports.
+4. GitHub App + automated PR review.
+5. MCP server for Codex/Cursor/Claude Code.
 
-After pushing your changes to git, open the Base44 dashboard and publish the app:
+## Base44 docs
 
-```bash
-base44 dashboard open
-```
+Documentation: https://docs.base44.com/Integrations/Using-GitHub
 
-## Docs & Support
-
-Documentation: [https://docs.base44.com/Integrations/Using-GitHub](https://docs.base44.com/Integrations/Using-GitHub)
-
-Base44 CLI command reference: [https://docs.base44.com/developers/references/cli/commands/introduction](https://docs.base44.com/developers/references/cli/commands/introduction)
-
-Support: [https://app.base44.com/support](https://app.base44.com/support)
+Base44 CLI command reference: https://docs.base44.com/developers/references/cli/commands/introduction
