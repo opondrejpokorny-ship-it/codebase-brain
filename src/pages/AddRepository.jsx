@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Loader2, GitBranch, FileCode } from "lucide-react";
+import { ArrowLeft, Loader2, GitBranch, FileCode, DownloadCloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,6 +14,7 @@ import {
   extractProjectName,
   parsePastedCode,
 } from "@/lib/codebaseUtils";
+import { importPublicGithubRepository, PUBLIC_GITHUB_IMPORT_LIMITS } from "@/lib/githubImport";
 
 function buildSummaryPrompt({ name, repoUrl, files, detectedStack, fallbackSummary }) {
   const filePreview = files
@@ -24,12 +25,22 @@ function buildSummaryPrompt({ name, repoUrl, files, detectedStack, fallbackSumma
   return `You are a concise code analyst. Create a short project summary for Codebase Brain.\n\nRules:\n- 2 to 4 sentences only.\n- Mention likely purpose, detected stack, and important architecture clues.\n- If context is incomplete, say that this is based only on the provided sample.\n\nProject name: ${name}\nRepository URL: ${repoUrl || "not provided"}\nDetected stack: ${detectedStack.join(", ") || "unknown"}\nFallback summary: ${fallbackSummary}\n\nFiles:\n${filePreview || "No pasted files were provided."}`;
 }
 
+function dedupeFiles(files) {
+  const byPath = new Map();
+  for (const file of files) {
+    byPath.set(file.path, file);
+  }
+  return [...byPath.values()];
+}
+
 export default function AddRepository() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [repoUrl, setRepoUrl] = useState("");
   const [pastedCode, setPastedCode] = useState("");
   const [projectName, setProjectName] = useState("");
+  const [importPublicRepo, setImportPublicRepo] = useState(true);
+  const [importStatus, setImportStatus] = useState("");
   const [saving, setSaving] = useState(false);
 
   const handleUrlChange = (val) => {
@@ -38,33 +49,53 @@ export default function AddRepository() {
   };
 
   const handleCreate = async () => {
-    const name = projectName.trim() || extractProjectName(repoUrl) || "Untitled Project";
-    const files = parsePastedCode(pastedCode);
+    const trimmedRepoUrl = repoUrl.trim();
+    const name = projectName.trim() || extractProjectName(trimmedRepoUrl) || "Untitled Project";
+    const pastedFiles = parsePastedCode(pastedCode);
 
-    if (!repoUrl.trim() && files.length === 0) {
+    if (!trimmedRepoUrl && pastedFiles.length === 0) {
       toast({ title: "Provide a GitHub URL or paste some code", variant: "destructive" });
       return;
     }
 
     setSaving(true);
+    setImportStatus("");
+
     try {
-      const detectedStack = detectStackFromFiles(files, repoUrl);
+      let importedFiles = [];
+      let importMeta = null;
+
+      if (trimmedRepoUrl && importPublicRepo) {
+        setImportStatus("Importing public GitHub files…");
+        importMeta = await importPublicGithubRepository(trimmedRepoUrl);
+        importedFiles = importMeta.importedFiles;
+      }
+
+      const files = dedupeFiles([...importedFiles, ...pastedFiles]);
+      const detectedStack = detectStackFromFiles(files, trimmedRepoUrl);
       const fallbackSummary = createFallbackSummary({
         name,
-        repositoryUrl: repoUrl,
+        repositoryUrl: trimmedRepoUrl,
         files,
         detectedStack,
       });
 
+      const importDescription = importMeta
+        ? `Imported ${importMeta.importedFiles.length}/${importMeta.attemptedFiles} public GitHub files from ${importMeta.repositoryFullName}.`
+        : trimmedRepoUrl
+          ? `Repository: ${trimmedRepoUrl}`
+          : "Pasted code project";
+
       const project = await base44.entities.CodebaseProject.create({
         name,
-        repository_url: repoUrl.trim() || null,
+        repository_url: trimmedRepoUrl || null,
         status: "draft",
         detected_stack: detectedStack,
         summary: fallbackSummary,
-        description: repoUrl.trim() ? `Repository: ${repoUrl.trim()}` : "Pasted code project",
+        description: importDescription,
       });
 
+      setImportStatus(`Saving ${files.length} file${files.length === 1 ? "" : "s"}…`);
       for (const file of files) {
         await base44.entities.CodeFile.create({
           project_id: project.id,
@@ -76,8 +107,9 @@ export default function AddRepository() {
       }
 
       try {
+        setImportStatus("Generating lightweight summary…");
         const summary = await base44.integrations.Core.InvokeLLM({
-          prompt: buildSummaryPrompt({ name, repoUrl, files, detectedStack, fallbackSummary }),
+          prompt: buildSummaryPrompt({ name, repoUrl: trimmedRepoUrl, files, detectedStack, fallbackSummary }),
         });
 
         await base44.entities.CodebaseProject.update(project.id, {
@@ -92,10 +124,15 @@ export default function AddRepository() {
       }
 
       navigate(`/project/${project.id}`);
-    } catch {
-      toast({ title: "Failed to create project", variant: "destructive" });
+    } catch (error) {
+      toast({
+        title: "Failed to create project",
+        description: error?.message || "Public GitHub import failed. You can uncheck import and store the URL only.",
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
+      setImportStatus("");
     }
   };
 
@@ -109,7 +146,7 @@ export default function AddRepository() {
       <div>
         <h1 className="font-heading text-xl font-bold text-slate-900">Add Repository</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Start small: save a GitHub URL or paste a few files. Full repository import comes later.
+          Start small: import a limited public GitHub sample or paste a few files manually.
         </p>
       </div>
 
@@ -135,9 +172,20 @@ export default function AddRepository() {
             value={repoUrl}
             onChange={(e) => handleUrlChange(e.target.value)}
           />
-          <p className="text-xs text-slate-400">
-            Phase 1 stores the URL only. Automatic public/private import is intentionally not implemented yet.
-          </p>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+            <label className="flex items-start gap-2 text-xs text-slate-600 cursor-pointer">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={importPublicRepo}
+                onChange={(e) => setImportPublicRepo(e.target.checked)}
+                disabled={saving}
+              />
+              <span>
+                Import a small public GitHub sample now. Limit: {PUBLIC_GITHUB_IMPORT_LIMITS.maxFiles} text files, max {Math.round(PUBLIC_GITHUB_IMPORT_LIMITS.maxFileBytes / 1000)} KB per file. Private repos and full GitHub App import come later.
+              </span>
+            </label>
+          </div>
         </div>
 
         <div className="relative">
@@ -164,6 +212,13 @@ export default function AddRepository() {
             Supported markers: <code className="bg-slate-100 px-1 rounded">--- src/App.jsx ---</code> or <code className="bg-slate-100 px-1 rounded">// file: src/App.jsx</code>
           </p>
         </div>
+
+        {importStatus && (
+          <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-700">
+            <DownloadCloud className="w-4 h-4" />
+            {importStatus}
+          </div>
+        )}
 
         <Button onClick={handleCreate} disabled={saving} className="w-full cursor-pointer gap-2">
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
