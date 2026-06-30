@@ -22,6 +22,15 @@ type InstallationPersistenceResult = {
   repositories_removed?: number;
 };
 
+type RepositoryLinkPersistenceResult = {
+  persisted: boolean;
+  reason?: string;
+  records_created?: number;
+  records_updated?: number;
+  records_removed?: number;
+  record_ids?: string[];
+};
+
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -67,6 +76,10 @@ function deliveryLoggingEnabled(): boolean {
 
 function installationLoggingEnabled(): boolean {
   return processingEnabled() && envFlag("GITHUB_INSTALLATION_LOGGING_ENABLED");
+}
+
+function repositoryLinkLoggingEnabled(): boolean {
+  return processingEnabled() && envFlag("GITHUB_REPOSITORY_LINK_LOGGING_ENABLED");
 }
 
 function header(request: Request, name: string): string {
@@ -145,7 +158,7 @@ function classifyEvent(event: string, action: string | null): { status: string; 
     return { status: "ignored", reason: `unsupported pull_request action: ${action || "unknown"}` };
   }
 
-  return { status: "received", reason: "supported but processing is not implemented beyond safe logging" };
+  return { status: "received", reason: "supported but processing is not implemented beyond safe metadata logging" };
 }
 
 function buildDeliverySnapshot(request: Request, payload: JsonMap, status: string, reason: string): JsonMap {
@@ -189,6 +202,50 @@ function buildInstallationSnapshot(payload: JsonMap): JsonMap | null {
   };
 }
 
+function buildRepositoryLinkSnapshot(installationId: number | string, repository: JsonMap, status = "active"): JsonMap | null {
+  const repositoryId = repository?.id;
+  const repositoryFullName = repository?.full_name || repository?.name;
+  if (!installationId || !repositoryId || !repositoryFullName) return null;
+
+  return {
+    installation_id: installationId,
+    repository_id: repositoryId,
+    repository_full_name: repositoryFullName,
+    repository_name: repository?.name || null,
+    repository_url: repository?.html_url || repository?.url || null,
+    private: Boolean(repository?.private),
+    status,
+    updated_date: new Date().toISOString(),
+  };
+}
+
+function repositoryGroupsFromPayload(payload: JsonMap): { active: JsonMap[]; removed: JsonMap[] } {
+  const action = payload?.action || null;
+
+  if (Array.isArray(payload?.repositories_added) || Array.isArray(payload?.repositories_removed)) {
+    return {
+      active: Array.isArray(payload.repositories_added) ? payload.repositories_added : [],
+      removed: Array.isArray(payload.repositories_removed) ? payload.repositories_removed : [],
+    };
+  }
+
+  if (Array.isArray(payload?.repositories)) {
+    const status = action === "deleted" || action === "suspend" ? "removed" : "active";
+    return status === "removed"
+      ? { active: [], removed: payload.repositories }
+      : { active: payload.repositories, removed: [] };
+  }
+
+  if (payload?.repository) {
+    const status = action === "deleted" || action === "suspend" ? "removed" : "active";
+    return status === "removed"
+      ? { active: [], removed: [payload.repository] }
+      : { active: [payload.repository], removed: [] };
+  }
+
+  return { active: [], removed: [] };
+}
+
 async function parsePayload(rawBody: string): Promise<{ payload: JsonMap | null; error?: string }> {
   try {
     return { payload: JSON.parse(rawBody || "{}") };
@@ -213,6 +270,10 @@ function deliveryEntityApi(): any | null {
 
 function installationEntityApi(): any | null {
   return entityApi("GitHubInstallation");
+}
+
+function repositoryLinkEntityApi(): any | null {
+  return entityApi("GitHubRepositoryLink");
 }
 
 async function persistDeliverySnapshot(delivery: JsonMap): Promise<DeliveryPersistenceResult> {
@@ -339,6 +400,97 @@ async function persistInstallationSnapshot(payload: JsonMap): Promise<Installati
   }
 }
 
+async function upsertRepositoryLink(entity: any, snapshot: JsonMap): Promise<{ created: boolean; updated: boolean; record_id?: string | null }> {
+  const existing = await entity.filter({
+    installation_id: snapshot.installation_id,
+    repository_id: snapshot.repository_id,
+  });
+
+  if (Array.isArray(existing) && existing.length > 0) {
+    const record = existing[0];
+    const updated = await entity.update(record.id, snapshot);
+    return { created: false, updated: true, record_id: updated?.id || record?.id || null };
+  }
+
+  const created = await entity.create({
+    ...snapshot,
+    created_date: new Date().toISOString(),
+  });
+  return { created: true, updated: false, record_id: created?.id || null };
+}
+
+async function persistRepositoryLinksSnapshot(payload: JsonMap): Promise<RepositoryLinkPersistenceResult> {
+  if (!repositoryLinkLoggingEnabled()) {
+    return {
+      persisted: false,
+      reason: "GITHUB_REPOSITORY_LINK_LOGGING_ENABLED is disabled",
+    };
+  }
+
+  const installationId = payload?.installation?.id;
+  if (!installationId) {
+    return {
+      persisted: false,
+      reason: "missing installation.id",
+    };
+  }
+
+  const groups = repositoryGroupsFromPayload(payload);
+  if (groups.active.length === 0 && groups.removed.length === 0) {
+    return {
+      persisted: false,
+      reason: "no repository metadata in payload",
+    };
+  }
+
+  const entity = repositoryLinkEntityApi();
+  if (!entity) {
+    return {
+      persisted: false,
+      reason: "Base44 GitHubRepositoryLink entity API is not available in this function runtime",
+    };
+  }
+
+  try {
+    let recordsCreated = 0;
+    let recordsUpdated = 0;
+    let recordsRemoved = 0;
+    const recordIds: string[] = [];
+
+    for (const repository of groups.active) {
+      const snapshot = buildRepositoryLinkSnapshot(installationId, repository, "active");
+      if (!snapshot) continue;
+      const result = await upsertRepositoryLink(entity, snapshot);
+      if (result.created) recordsCreated += 1;
+      if (result.updated) recordsUpdated += 1;
+      if (result.record_id) recordIds.push(result.record_id);
+    }
+
+    for (const repository of groups.removed) {
+      const snapshot = buildRepositoryLinkSnapshot(installationId, repository, "removed");
+      if (!snapshot) continue;
+      const result = await upsertRepositoryLink(entity, snapshot);
+      recordsRemoved += 1;
+      if (result.created) recordsCreated += 1;
+      if (result.updated) recordsUpdated += 1;
+      if (result.record_id) recordIds.push(result.record_id);
+    }
+
+    return {
+      persisted: recordsCreated + recordsUpdated + recordsRemoved > 0,
+      records_created: recordsCreated,
+      records_updated: recordsUpdated,
+      records_removed: recordsRemoved,
+      record_ids: recordIds,
+    };
+  } catch (error) {
+    return {
+      persisted: false,
+      reason: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
 async function handleRequest(request: Request): Promise<Response> {
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
@@ -368,11 +520,16 @@ async function handleRequest(request: Request): Promise<Response> {
         persisted: false,
         reason: "processing disabled",
       },
+      repository_link_persistence: {
+        persisted: false,
+        reason: "processing disabled",
+      },
       feature_flags: {
         GITHUB_APP_ENABLED: envFlag("GITHUB_APP_ENABLED"),
         GITHUB_WEBHOOK_PROCESSING_ENABLED: envFlag("GITHUB_WEBHOOK_PROCESSING_ENABLED"),
         GITHUB_WEBHOOK_DELIVERY_LOGGING_ENABLED: envFlag("GITHUB_WEBHOOK_DELIVERY_LOGGING_ENABLED"),
         GITHUB_INSTALLATION_LOGGING_ENABLED: envFlag("GITHUB_INSTALLATION_LOGGING_ENABLED"),
+        GITHUB_REPOSITORY_LINK_LOGGING_ENABLED: envFlag("GITHUB_REPOSITORY_LINK_LOGGING_ENABLED"),
         GITHUB_PRIVATE_IMPORT_ENABLED: envFlag("GITHUB_PRIVATE_IMPORT_ENABLED"),
         GITHUB_AUTO_ANALYZE_PRS: envFlag("GITHUB_AUTO_ANALYZE_PRS"),
         GITHUB_PR_POSTING_ENABLED: envFlag("GITHUB_PR_POSTING_ENABLED"),
@@ -396,7 +553,6 @@ async function handleRequest(request: Request): Promise<Response> {
   const classification = classifyEvent(event, action);
   const delivery = buildDeliverySnapshot(request, payload, classification.status, classification.reason);
   const persistence = await persistDeliverySnapshot(delivery);
-  const installationPersistence = await persistInstallationSnapshot(payload);
 
   if (persistence.duplicate) {
     return jsonResponse({
@@ -404,15 +560,25 @@ async function handleRequest(request: Request): Promise<Response> {
       reason: "duplicate delivery ignored",
       delivery,
       persistence,
-      installation_persistence: installationPersistence,
+      installation_persistence: {
+        persisted: false,
+        reason: "duplicate delivery ignored before metadata updates",
+      },
+      repository_link_persistence: {
+        persisted: false,
+        reason: "duplicate delivery ignored before metadata updates",
+      },
       writes_enabled: false,
       analysis_started: false,
     });
   }
 
-  // TODO Phase 13:
+  const installationPersistence = await persistInstallationSnapshot(payload);
+  const repositoryLinkPersistence = await persistRepositoryLinksSnapshot(payload);
+
+  // TODO Phase 14:
   // - provide a confirmed Base44 entity API binding if the runtime does not expose globalThis.base44
-  // - store GitHubRepositoryLink metadata from installation_repositories events
+  // - add UI for installed repository links
   // - for pull_request events, enqueue internal analysis only when GITHUB_AUTO_ANALYZE_PRS=true
   // - never write to GitHub unless GITHUB_PR_POSTING_ENABLED=true and a user-approved posting flow exists
 
@@ -422,6 +588,7 @@ async function handleRequest(request: Request): Promise<Response> {
     delivery,
     persistence,
     installation_persistence: installationPersistence,
+    repository_link_persistence: repositoryLinkPersistence,
     writes_enabled: false,
     analysis_started: false,
   });
