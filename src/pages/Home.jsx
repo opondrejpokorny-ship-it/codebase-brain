@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Brain, Loader2 } from "lucide-react";
+import { Plus, Brain, Loader2, ServerCog } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { base44 } from "@/api/base44Client";
 import ProjectCard from "@/components/projects/ProjectCard";
@@ -26,12 +26,20 @@ export default function Home() {
             Index your codebase, get AI-powered answers about architecture, dependencies, and logic.
           </p>
         </div>
-        <Link to="/add">
-          <Button className="cursor-pointer gap-2">
-            <Plus className="w-4 h-4" />
-            Add Repository
-          </Button>
-        </Link>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Link to="/diagnostics">
+            <Button variant="outline" className="cursor-pointer gap-2 w-full sm:w-auto">
+              <ServerCog className="w-4 h-4" />
+              Diagnostics
+            </Button>
+          </Link>
+          <Link to="/add">
+            <Button className="cursor-pointer gap-2 w-full sm:w-auto">
+              <Plus className="w-4 h-4" />
+              Add Repository
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
@@ -50,12 +58,20 @@ export default function Home() {
               </div>
               <h3 className="font-heading font-semibold text-slate-900 mb-1">No projects yet</h3>
               <p className="text-sm text-slate-500 mb-5">Add a GitHub repository or paste code to get started.</p>
-              <Link to="/add">
-                <Button variant="outline" className="cursor-pointer gap-2">
-                  <Plus className="w-4 h-4" />
-                  Add Your First Project
-                </Button>
-              </Link>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
+                <Link to="/diagnostics">
+                  <Button variant="outline" className="cursor-pointer gap-2 w-full sm:w-auto">
+                    <ServerCog className="w-4 h-4" />
+                    Run Diagnostics
+                  </Button>
+                </Link>
+                <Link to="/add">
+                  <Button variant="outline" className="cursor-pointer gap-2 w-full sm:w-auto">
+                    <Plus className="w-4 h-4" />
+                    Add Your First Project
+                  </Button>
+                </Link>
+              </div>
             </div>
           ) : (
             <div className="grid sm:grid-cols-2 gap-3">
