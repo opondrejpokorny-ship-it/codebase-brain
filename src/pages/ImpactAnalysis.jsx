@@ -9,8 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import { base44 } from "@/api/base44Client";
 import { useToast } from "@/components/ui/use-toast";
 import { buildCodeRelations, relatedPathsForChangedFiles, summarizeCodeGraph } from "@/lib/codeGraphUtils";
+import { buildContextPack } from "@/lib/contextPackBuilder";
 import { fetchPublicGithubPrDiffClient, formatPrDiffForImpactAnalysis } from "@/lib/githubPrUtils";
 import { compareProjectAndPrRepository } from "@/lib/repositoryCompatibilityUtils";
+import ContextPackInspector from "@/components/projects/ContextPackInspector";
 import {
   buildImpactAnalysisPrompt,
   calibrateImpactAnalysisOutput,
@@ -147,6 +149,18 @@ export default function ImpactAnalysis() {
   const graphSummary = useMemo(() => summarizeCodeGraph(codeRelations), [codeRelations]);
   const relatedPaths = useMemo(() => relatedPathsForChangedFiles(codeRelations, changedFiles), [codeRelations, changedFiles]);
   const compatibility = useMemo(() => compareProjectAndPrRepository(project, prMeta), [project, prMeta]);
+  const contextPackPreview = useMemo(() => {
+    if (!changeInput.trim() || files.length === 0) return null;
+    return buildContextPack({
+      project,
+      files,
+      relations: codeRelations,
+      question: changeInput,
+      changedFiles,
+      diffText: changeInput,
+      maxTokens: 12000,
+    });
+  }, [project, files, codeRelations, changeInput, changedFiles]);
 
   const handleFetchPr = async () => {
     if (!prUrl.trim()) {
@@ -477,6 +491,8 @@ export default function ImpactAnalysis() {
               </div>
             </div>
           </div>
+
+          {contextPackPreview && <ContextPackInspector contextPack={contextPackPreview} />}
 
           <div className="bg-amber-50 rounded-xl border border-amber-200 p-4 text-sm text-amber-800 flex gap-2">
             <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
