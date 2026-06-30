@@ -4,16 +4,17 @@ Lightweight Base44 MVP for an AI codebase memory tool.
 
 The long-term product direction is inspired by modern codebase-memory tools: repository context, file summaries, structural understanding, PR impact analysis, and eventually MCP tools for coding agents. This repo starts much smaller so we can validate the core value without wasting credits.
 
-## Phase 1 goal
+## Current goal
 
 A user can:
 
 1. create a codebase project,
-2. add a GitHub repository URL or paste a small code sample,
-3. store parsed file records,
-4. detect a rough technology stack,
-5. generate a short project summary,
-6. ask questions about the stored codebase context.
+2. add a public GitHub repository URL and import a small safe sample,
+3. or paste a small code sample manually,
+4. store parsed file records,
+5. detect a rough technology stack,
+6. generate a short project summary,
+7. ask questions about the stored codebase context.
 
 ## What is included now
 
@@ -23,14 +24,27 @@ A user can:
 - File list
 - Basic stack detection
 - Pasted-code parser
+- Lightweight public GitHub import with strict limits
 - AI project summary through Base44 `Core.InvokeLLM`
 - AI chat over stored context with a safe phase-1 fallback
 - Documentation for next phases
 
+## Public GitHub import limits
+
+The current import is intentionally small and client-side:
+
+- public repositories only,
+- max 40 text files,
+- max 35 KB per file,
+- max 3,000 tree entries inspected,
+- skips `node_modules`, `dist`, `build`, generated folders, lock files, binaries, and media.
+
+This is enough to test product value without building a GitHub App or backend queue yet.
+
 ## What is intentionally not included yet
 
-- GitHub App
-- automatic private repo import
+- private repository import
+- GitHub App installation
 - PR webhooks
 - PR comments
 - billing
@@ -104,14 +118,15 @@ VITE_BASE44_APP_BASE_URL=https://your-app.base44.app
 ## Documentation
 
 - `docs/phase-1-scope.md`
+- `docs/phase-2-public-github-import.md`
 - `docs/architecture.md`
 
 ## Next phases
 
-1. Public GitHub repository import with strict limits.
+1. Move public import into a Base44 backend function.
 2. Manual PR/diff impact analysis.
 3. Code graph lite based on imports.
-4. GitHub App + automated PR review.
+4. GitHub App + private repo import + automated PR review.
 5. MCP server for Codex/Cursor/Claude Code.
 
 ## Base44 docs
