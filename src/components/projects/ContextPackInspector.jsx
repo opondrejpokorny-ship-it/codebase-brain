@@ -42,6 +42,7 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
   const selectedRelations = contextPack.selectedRelations || [];
   const warnings = contextPack.warnings || [];
   const efficiency = contextPack.efficiency || {};
+  const depthLabel = contextPack.depthPreset || contextPack.depth || "Balanced";
   const changedSet = new Set(changedFiles || []);
   const selectedPathSet = new Set(selectedFiles.map((file) => file.path).filter(Boolean));
 
@@ -113,7 +114,10 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
           <p className="text-xs text-slate-400 mt-1">Shows the selected files and why they were included.</p>
         </div>
         <div className="flex flex-col items-end gap-2 flex-shrink-0">
-          <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200">{selectedFiles.length} files</Badge>
+          <div className="flex flex-wrap justify-end gap-1.5">
+            <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200">{selectedFiles.length} files</Badge>
+            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">{depthLabel} context</Badge>
+          </div>
           <Button type="button" variant="outline" size="sm" onClick={handleCopy} className="h-8 gap-1.5 cursor-pointer text-xs">
             {copied ? <Check className="w-3.5 h-3.5" /> : <ClipboardCopy className="w-3.5 h-3.5" />}
             {copied ? "Copied" : "Copy summary"}
