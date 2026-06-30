@@ -15,8 +15,9 @@ A user can:
 5. detect a rough technology stack,
 6. generate a short project summary,
 7. view import metadata and warnings,
-8. ask questions about the stored codebase context,
-9. paste a diff or changed file list for manual impact analysis.
+8. view lightweight import/require relationships,
+9. ask questions about the stored codebase context,
+10. paste a diff or changed file list for manual impact analysis.
 
 ## What is included now
 
@@ -29,7 +30,8 @@ A user can:
 - Lightweight public GitHub import with strict limits
 - Backend-first public import with browser fallback
 - Import metadata card on project detail
-- Manual PR / diff impact analysis
+- Code Graph Lite import/require relations
+- Manual PR / diff impact analysis enhanced with graph relations
 - AI project summary through Base44 `Core.InvokeLLM`
 - AI chat over stored context with a safe phase-1 fallback
 - Documentation for next phases
@@ -46,9 +48,20 @@ The current import is intentionally small and backend-first:
 
 This is enough to test product value without building a GitHub App or backend queue yet.
 
+## Code Graph Lite
+
+Project Detail now shows lightweight relationships detected from stored files:
+
+- internal resolved imports,
+- external package imports,
+- unresolved relative imports,
+- touched files.
+
+This is deterministic and cheap. It does not use tree-sitter, LSP, embeddings, or a graph database yet.
+
 ## Manual impact analysis
 
-Open a project and click **Impact Analysis**. Paste a git diff, PR patch, or changed file list. The app performs a deterministic pre-scan, selects relevant stored files, and asks AI for:
+Open a project and click **Impact Analysis**. Paste a git diff, PR patch, or changed file list. The app performs a deterministic pre-scan, uses Code Graph Lite to find related files, selects relevant stored files, and asks AI for:
 
 - summary,
 - risk level,
@@ -68,7 +81,7 @@ This does not run tests or inspect real GitHub PRs yet.
 - PR comments
 - billing
 - teams
-- full code graph
+- full persisted graph database
 - MCP server
 - tree-sitter/LSP indexing
 - vector database
@@ -140,11 +153,12 @@ VITE_BASE44_APP_BASE_URL=https://your-app.base44.app
 - `docs/phase-2-public-github-import.md`
 - `docs/phase-3-import-observability.md`
 - `docs/phase-4-manual-impact-analysis.md`
+- `docs/phase-5-code-graph-lite.md`
 - `docs/architecture.md`
 
 ## Next phases
 
-1. Code graph lite based on imports.
+1. Public GitHub PR fetch by URL.
 2. GitHub App + private repo import + automated PR review.
 3. MCP server for Codex/Cursor/Claude Code.
 
