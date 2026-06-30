@@ -22,7 +22,8 @@ A user can:
 12. follow documented GitHub App permissions, webhook, and safety plans before private repo access is implemented,
 13. deploy a disabled GitHub webhook receiver skeleton with no side effects,
 14. optionally log webhook deliveries and dedupe them if the Base44 entity API is available in the function runtime,
-15. run a safe Base44 runtime diagnostics endpoint that reports capability presence without exposing secrets.
+15. run a safe Base44 runtime diagnostics endpoint that reports capability presence without exposing secrets,
+16. run diagnostics from the app UI at `/diagnostics`.
 
 ## What is included now
 
@@ -45,6 +46,7 @@ A user can:
 - Disabled GitHub webhook receiver skeleton
 - Optional webhook delivery logging adapter
 - Base44 runtime diagnostics function
+- Runtime Diagnostics UI
 - AI project summary through Base44 `Core.InvokeLLM`
 - AI chat over stored context with a safe phase-1 fallback
 - Documentation for next phases
@@ -164,6 +166,14 @@ base44/functions/base44RuntimeDiagnostics/entry.ts
 
 It reports only capability presence, such as whether `globalThis.base44.entities.GitHubWebhookDelivery` exists and which methods are available. It never returns secret values, only presence/length/enabled booleans.
 
+A frontend diagnostics page also exists:
+
+```txt
+/diagnostics
+```
+
+Use it after deploying Base44 functions to verify `GitHubWebhookDelivery` before enabling delivery logging.
+
 ## Public GitHub PR fetch limits
 
 - public PRs only,
@@ -261,6 +271,7 @@ VITE_BASE44_APP_BASE_URL=https://your-app.base44.app
 - `docs/phase-9-webhook-skeleton.md`
 - `docs/phase-9b-webhook-delivery-logging.md`
 - `docs/phase-10-base44-runtime-diagnostics.md`
+- `docs/phase-11-runtime-diagnostics-ui.md`
 - `docs/github-app-review-safety-contract.md`
 - `docs/github-webhook-contract.md`
 - `docs/architecture.md`
