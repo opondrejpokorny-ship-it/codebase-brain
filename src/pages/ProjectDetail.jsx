@@ -94,6 +94,12 @@ function MissingContextQueueCard({ project, projectId, queue = [], onClear }) {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Link to={`/project/${projectId}/import-queue`}>
+            <Button type="button" variant="outline" size="sm" className="cursor-pointer gap-1.5 bg-white/70">
+              <PackageSearch className="w-3.5 h-3.5" />
+              Open checklist
+            </Button>
+          </Link>
           <Button type="button" variant="outline" size="sm" onClick={handleCopyPrompt} className="cursor-pointer gap-1.5 bg-white/70">
             {copiedPrompt ? <Check className="w-3.5 h-3.5" /> : <ClipboardCopy className="w-3.5 h-3.5" />}
             {copiedPrompt ? "Prompt copied" : "Copy import prompt"}
@@ -115,7 +121,7 @@ function MissingContextQueueCard({ project, projectId, queue = [], onClear }) {
         ))}
       </div>
       <p className="text-xs text-amber-700 mt-3">
-        Re-index automation is not enabled yet; use Copy import prompt or Copy queue for the next import step.
+        Re-index automation is not enabled yet; open the checklist or copy the prompt for the next import step.
       </p>
     </div>
   );
