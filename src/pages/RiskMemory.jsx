@@ -115,6 +115,9 @@ export default function RiskMemory() {
               <History className="w-5 h-5 text-slate-500" />
               Risk Memory
             </h1>
+            {project?.name && (
+              <p className="text-xs text-slate-400 mt-1">Project: {project.name}</p>
+            )}
             <p className="text-sm text-slate-500 mt-1 max-w-2xl">
               Persistent memory from previous impact analyses. It highlights repeated risk areas, high-risk files, common testing recommendations, and recent reports.
             </p>
