@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Check, ClipboardCopy, Loader2, PackageSearch, TriangleAlert } from "lucide-react";
+import { ArrowLeft, Check, ClipboardCopy, DownloadCloud, Loader2, PackageSearch, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { base44 } from "@/api/base44Client";
+import { detectLanguageFromPath } from "@/lib/codebaseUtils";
+import { persistCodeRelationsIfAvailable } from "@/lib/codeRelationPersistence";
 import {
   clearMissingContextQueue,
   formatMissingContextImportPrompt,
@@ -12,6 +14,7 @@ import {
 } from "@/lib/missingContextQueueUtils";
 
 const EXTENSIONS = [".js", ".jsx", ".ts", ".tsx"];
+const MAX_IMPORTED_FILE_BYTES = 35_000;
 
 function ChecklistItem({ children }) {
   return (
@@ -50,12 +53,85 @@ function statusBadgeClass(status) {
   return "bg-amber-50 text-amber-700 border-amber-200";
 }
 
+function parseGitHubRepoUrl(url = "") {
+  const match = String(url || "").trim().match(/^https?:\/\/github\.com\/([^/\s]+)\/([^/\s#?]+)(?:[\s/#?].*)?$/i);
+  if (!match) return null;
+  return {
+    owner: match[1],
+    repo: match[2].replace(/\.git$/i, ""),
+  };
+}
+
+async function fetchGitHubJson(url) {
+  const response = await fetch(url, { headers: { Accept: "application/vnd.github+json" } });
+  if (!response.ok) throw new Error(`GitHub request failed: ${response.status}`);
+  return response.json();
+}
+
+async function fetchRawGitHubFile({ owner, repo, branch, path }) {
+  const encodedPath = path.split("/").map(encodeURIComponent).join("/");
+  const url = `https://raw.githubusercontent.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${encodeURIComponent(branch)}/${encodedPath}`;
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Raw file request failed for ${path}: ${response.status}`);
+  const text = await response.text();
+  return text.slice(0, MAX_IMPORTED_FILE_BYTES);
+}
+
+async function resolveQueuedFilesFromPublicGitHub({ project, projectId, resolvedQueue, storedPathSet }) {
+  const parsed = parseGitHubRepoUrl(project?.repository_url || "");
+  if (!parsed) throw new Error("Project does not have a valid public GitHub repository URL.");
+
+  const { owner, repo } = parsed;
+  const repoMeta = await fetchGitHubJson(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`);
+  const branch = repoMeta.default_branch || "main";
+  const treeResult = await fetchGitHubJson(
+    `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/trees/${encodeURIComponent(branch)}?recursive=1`
+  );
+
+  const treePaths = new Set((treeResult.tree || []).filter((entry) => entry.type === "blob").map((entry) => entry.path));
+  const filesToCreate = [];
+  const misses = [];
+
+  for (const item of resolvedQueue) {
+    if (item.status === "indexed") continue;
+    const exactPath = item.candidates.find((candidate) => treePaths.has(candidate) && !storedPathSet.has(candidate));
+    if (!exactPath) {
+      misses.push({ target: item.target, reason: "No matching repository file found." });
+      continue;
+    }
+
+    const content = await fetchRawGitHubFile({ owner, repo, branch, path: exactPath });
+    filesToCreate.push({
+      project_id: projectId,
+      path: exactPath,
+      language: detectLanguageFromPath(exactPath),
+      content,
+      size: content.length,
+    });
+  }
+
+  const createdFiles = [];
+  for (const file of filesToCreate) {
+    const created = await base44.entities.CodeFile.create(file);
+    createdFiles.push(created || file);
+  }
+
+  return {
+    createdFiles,
+    misses,
+    branch,
+  };
+}
+
 export default function MissingContextImportQueue() {
   const { id } = useParams();
   const [project, setProject] = useState(null);
   const [files, setFiles] = useState([]);
   const [queue, setQueue] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [resolving, setResolving] = useState(false);
+  const [resolveMessage, setResolveMessage] = useState("");
+  const [resolveError, setResolveError] = useState("");
   const [copiedQueue, setCopiedQueue] = useState(false);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
 
@@ -90,6 +166,7 @@ export default function MissingContextImportQueue() {
   const resolvedQueue = useMemo(() => queue.map((item) => resolveQueuedTarget(item, storedPathSet)), [queue, storedPathSet]);
   const indexedCount = resolvedQueue.filter((item) => item.status === "indexed").length;
   const missingCount = Math.max(0, resolvedQueue.length - indexedCount);
+  const canResolveFromPublicGitHub = Boolean(project?.repository_url) && missingCount > 0;
 
   const importPrompt = formatMissingContextImportPrompt({
     projectName: project?.name || "this project",
@@ -117,11 +194,48 @@ export default function MissingContextImportQueue() {
     }
   };
 
+  const handleResolveFromPublicGitHub = async () => {
+    setResolving(true);
+    setResolveMessage("Resolving queued targets from public GitHub…");
+    setResolveError("");
+
+    try {
+      const result = await resolveQueuedFilesFromPublicGitHub({
+        project,
+        projectId: id,
+        resolvedQueue,
+        storedPathSet,
+      });
+
+      const nextFiles = [...files, ...result.createdFiles];
+      setFiles(nextFiles);
+
+      try {
+        if (result.createdFiles.length > 0) {
+          await persistCodeRelationsIfAvailable({ projectId: id, files: nextFiles });
+          await base44.entities.CodebaseProject.update(id, { status: "indexed" }).catch(() => null);
+        }
+      } catch {
+        // Resolution should still be visible even if relation persistence fails.
+      }
+
+      const missSuffix = result.misses.length ? ` ${result.misses.length} target${result.misses.length === 1 ? "" : "s"} still not found.` : "";
+      setResolveMessage(`Imported ${result.createdFiles.length} file${result.createdFiles.length === 1 ? "" : "s"} from ${result.branch}.${missSuffix}`);
+    } catch (error) {
+      setResolveError(error?.message || "Failed to resolve queued targets from public GitHub.");
+      setResolveMessage("");
+    } finally {
+      setResolving(false);
+    }
+  };
+
   const handleClear = () => {
     clearMissingContextQueue(id);
     setQueue([]);
     setCopiedQueue(false);
     setCopiedPrompt(false);
+    setResolveMessage("");
+    setResolveError("");
   };
 
   if (loading) {
@@ -183,6 +297,17 @@ export default function MissingContextImportQueue() {
                 <p className="text-xs text-slate-400 mt-1">Extensionless target paths ready for focused import resolution.</p>
               </div>
               <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleResolveFromPublicGitHub}
+                  disabled={!canResolveFromPublicGitHub || resolving}
+                  className="cursor-pointer gap-1.5"
+                >
+                  {resolving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <DownloadCloud className="w-3.5 h-3.5" />}
+                  {resolving ? "Resolving…" : "Resolve from GitHub"}
+                </Button>
                 <Button type="button" variant="outline" size="sm" onClick={handleCopyPrompt} className="cursor-pointer gap-1.5">
                   {copiedPrompt ? <Check className="w-3.5 h-3.5" /> : <ClipboardCopy className="w-3.5 h-3.5" />}
                   {copiedPrompt ? "Prompt copied" : "Copy import prompt"}
@@ -196,6 +321,10 @@ export default function MissingContextImportQueue() {
                 </Button>
               </div>
             </div>
+
+            {resolveMessage && <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-md px-3 py-2 mb-3">{resolveMessage}</p>}
+            {resolveError && <p className="text-xs text-red-700 bg-red-50 border border-red-100 rounded-md px-3 py-2 mb-3">{resolveError}</p>}
+
             <div className="space-y-2">
               {resolvedQueue.map((item) => (
                 <div key={item.target} className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
