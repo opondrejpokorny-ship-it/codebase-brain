@@ -27,6 +27,25 @@ function suggestedMissingPath(importPath = "") {
   return value;
 }
 
+function missingPathCandidates(relation) {
+  const target = suggestedMissingPath(relation?.import_path || "");
+  if (!target) return [];
+  return [
+    `${target}.js`,
+    `${target}.jsx`,
+    `${target}.ts`,
+    `${target}.tsx`,
+    `${target}/index.js`,
+    `${target}/index.jsx`,
+    `${target}/index.ts`,
+    `${target}/index.tsx`,
+  ];
+}
+
+function bestMissingPathGuess(relation) {
+  return missingPathCandidates(relation)[0] || suggestedMissingPath(relation?.import_path || "");
+}
+
 function missingContextLabel(relation) {
   const target = suggestedMissingPath(relation?.import_path || "");
   const suffix = target
@@ -45,6 +64,10 @@ function uniqueRelations(relations = []) {
   });
 }
 
+function uniqueMissingPathGuesses(relations = []) {
+  return [...new Set(relations.map(bestMissingPathGuess).filter(Boolean))];
+}
+
 function formatReasons(reasons = []) {
   if (!reasons.length) return "  - No explicit selection reason captured.";
   return reasons.map((reason) => `  - ${reason}`).join("\n");
@@ -57,6 +80,7 @@ Selected files: ${selectedFiles.length}
 Selected tokens: ${formatEstimatedTokens(efficiency.selectedTokens || contextPack.estimatedTokens || 0)}
 Full repo estimate: ${formatEstimatedTokens(efficiency.fullRepoTokens || 0)}
 Estimated savings: ${efficiency.savingsPercent || 0}%
+Missing context candidates: ${missingContextRelations.length}
 
 ## Context warnings
 ${(contextPack.warnings || []).length ? (contextPack.warnings || []).map((warning) => `- ${warning}`).join("\n") : "- None"}
@@ -66,6 +90,9 @@ ${selectedFiles.map((file) => `### ${file.path}\n${formatReasons(contextPack.rea
 
 ## Missing context candidates
 ${missingContextRelations.length ? missingContextRelations.map((relation) => `- ${missingContextLabel(relation)}`).join("\n") : "- None"}
+
+## Suggested missing paths to import
+${uniqueMissingPathGuesses(missingContextRelations).length ? uniqueMissingPathGuesses(missingContextRelations).map((path) => `- ${path}`).join("\n") : "- None"}
 
 ## Graph relations connected to changed files
 ${directChangedRelations.length ? directChangedRelations.map((relation) => `- ${relationLabel(relation)}`).join("\n") : "- None"}
@@ -97,14 +124,23 @@ function RelationList({ title, relations = [], limit = 12 }) {
   );
 }
 
-function MissingContextList({ relations = [] }) {
+function MissingContextList({ relations = [], onCopyPaths, copiedPaths }) {
   if (!relations.length) return null;
 
   return (
     <div className="mt-4 rounded-lg bg-amber-50 border border-amber-100 p-3">
-      <p className="text-xs font-medium text-amber-800 flex items-center gap-1.5 mb-2">
-        <TriangleAlert className="w-3.5 h-3.5" />
-        Missing context candidates
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <p className="text-xs font-medium text-amber-800 flex items-center gap-1.5">
+          <TriangleAlert className="w-3.5 h-3.5" />
+          Missing context candidates
+        </p>
+        <Button type="button" variant="outline" size="sm" onClick={onCopyPaths} className="h-7 gap-1.5 cursor-pointer text-xs bg-white/70">
+          {copiedPaths ? <Check className="w-3 h-3" /> : <ClipboardCopy className="w-3 h-3" />}
+          {copiedPaths ? "Copied" : "Copy paths"}
+        </Button>
+      </div>
+      <p className="text-xs text-amber-700 mb-2">
+        {relations.length} import target{relations.length === 1 ? "" : "s"} from changed files are missing from the stored sample. Add these files to improve graph coverage.
       </p>
       <div className="space-y-1 max-h-36 overflow-y-auto">
         {relations.map((relation, index) => (
@@ -119,6 +155,7 @@ function MissingContextList({ relations = [] }) {
 
 export default function ContextPackInspector({ contextPack, changedFiles = [] }) {
   const [copied, setCopied] = useState(false);
+  const [copiedPaths, setCopiedPaths] = useState(false);
   if (!contextPack) return null;
 
   const selectedFiles = contextPack.selectedFiles || [];
@@ -130,6 +167,7 @@ export default function ContextPackInspector({ contextPack, changedFiles = [] })
   const missingContextRelations = uniqueRelations(changedConnectedRelations.filter(isMissingContextRelation));
   const directChangedRelations = changedConnectedRelations.filter((relation) => !isMissingContextRelation(relation));
   const otherContextRelations = selectedRelations.filter((relation) => !isChangedFileRelation(relation, changedSet) && !isMissingContextRelation(relation));
+  const missingPathGuesses = uniqueMissingPathGuesses(missingContextRelations);
 
   const handleCopy = async () => {
     const text = buildCopyText({ contextPack, selectedFiles, directChangedRelations, otherContextRelations, missingContextRelations, efficiency });
@@ -139,6 +177,16 @@ export default function ContextPackInspector({ contextPack, changedFiles = [] })
       window.setTimeout(() => setCopied(false), 1600);
     } catch {
       setCopied(false);
+    }
+  };
+
+  const handleCopyMissingPaths = async () => {
+    try {
+      await navigator.clipboard.writeText(missingPathGuesses.join("\n"));
+      setCopiedPaths(true);
+      window.setTimeout(() => setCopiedPaths(false), 1600);
+    } catch {
+      setCopiedPaths(false);
     }
   };
 
@@ -180,6 +228,12 @@ export default function ContextPackInspector({ contextPack, changedFiles = [] })
         </div>
       </div>
 
+      {missingContextRelations.length > 0 && (
+        <div className="mb-4 rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-xs text-amber-800">
+          Context coverage note: {missingContextRelations.length} direct import target{missingContextRelations.length === 1 ? "" : "s"} from changed files are missing from the stored sample. The selected context is still usable, but importing those files would improve graph completeness.
+        </div>
+      )}
+
       {warnings.length > 0 && (
         <div className="mb-4 rounded-lg bg-amber-50 border border-amber-100 p-3">
           <p className="text-xs font-medium text-amber-800 flex items-center gap-1.5 mb-2">
@@ -220,7 +274,7 @@ export default function ContextPackInspector({ contextPack, changedFiles = [] })
         })}
       </div>
 
-      <MissingContextList relations={missingContextRelations} />
+      <MissingContextList relations={missingContextRelations} onCopyPaths={handleCopyMissingPaths} copiedPaths={copiedPaths} />
       <RelationList title="Graph relations connected to changed files" relations={directChangedRelations} />
       <RelationList title="Other selected context relations" relations={otherContextRelations} limit={8} />
     </div>
