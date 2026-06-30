@@ -27,23 +27,8 @@ function suggestedMissingPath(importPath = "") {
   return value;
 }
 
-function missingPathCandidates(relation) {
-  const target = suggestedMissingPath(relation?.import_path || "");
-  if (!target) return [];
-  return [
-    `${target}.js`,
-    `${target}.jsx`,
-    `${target}.ts`,
-    `${target}.tsx`,
-    `${target}/index.js`,
-    `${target}/index.jsx`,
-    `${target}/index.ts`,
-    `${target}/index.tsx`,
-  ];
-}
-
 function bestMissingPathGuess(relation) {
-  return missingPathCandidates(relation)[0] || suggestedMissingPath(relation?.import_path || "");
+  return suggestedMissingPath(relation?.import_path || "");
 }
 
 function missingContextLabel(relation) {
@@ -91,7 +76,7 @@ ${selectedFiles.map((file) => `### ${file.path}\n${formatReasons(contextPack.rea
 ## Missing context candidates
 ${missingContextRelations.length ? missingContextRelations.map((relation) => `- ${missingContextLabel(relation)}`).join("\n") : "- None"}
 
-## Suggested missing paths to import
+## Suggested missing import targets
 ${uniqueMissingPathGuesses(missingContextRelations).length ? uniqueMissingPathGuesses(missingContextRelations).map((path) => `- ${path}`).join("\n") : "- None"}
 
 ## Graph relations connected to changed files
@@ -136,7 +121,7 @@ function MissingContextList({ relations = [], onCopyPaths, copiedPaths }) {
         </p>
         <Button type="button" variant="outline" size="sm" onClick={onCopyPaths} className="h-7 gap-1.5 cursor-pointer text-xs bg-white/70">
           {copiedPaths ? <Check className="w-3 h-3" /> : <ClipboardCopy className="w-3 h-3" />}
-          {copiedPaths ? "Copied" : "Copy paths"}
+          {copiedPaths ? "Copied" : "Copy targets"}
         </Button>
       </div>
       <p className="text-xs text-amber-700 mb-2">
