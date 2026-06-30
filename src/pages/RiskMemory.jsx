@@ -4,18 +4,12 @@ import { ArrowLeft, BarChart3, FileWarning, GitBranch, History, Loader2, ShieldA
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { base44 } from "@/api/base44Client";
+import RiskMemoryRecentAnalyses from "@/components/projects/risk-memory/RiskMemoryRecentAnalyses";
 import {
   buildRiskMemory,
   mergeAnalysisHistories,
   readLocalAnalysisHistory,
 } from "@/lib/analysisHistoryUtils";
-
-const riskStyles = {
-  low: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  medium: "bg-amber-50 text-amber-700 border-amber-200",
-  high: "bg-red-50 text-red-700 border-red-200",
-  unknown: "bg-slate-50 text-slate-600 border-slate-200",
-};
 
 function optionalEntity(entityName) {
   try {
@@ -115,9 +109,7 @@ export default function RiskMemory() {
               <History className="w-5 h-5 text-slate-500" />
               Risk Memory
             </h1>
-            {project?.name && (
-              <p className="text-xs text-slate-400 mt-1">Project: {project.name}</p>
-            )}
+            {project?.name && <p className="text-xs text-slate-400 mt-1">Project: {project.name}</p>}
             <p className="text-sm text-slate-500 mt-1 max-w-2xl">
               Persistent memory from previous impact analyses. It highlights repeated risk areas, high-risk files, common testing recommendations, and recent reports.
             </p>
@@ -169,71 +161,13 @@ export default function RiskMemory() {
           </div>
 
           <div className="grid lg:grid-cols-2 gap-4">
-            <CountList
-              title="High-risk files"
-              icon={FileWarning}
-              items={memory.highRiskFiles}
-              emptyText="No file has appeared in a high-risk analysis yet."
-            />
-            <CountList
-              title="Frequently changed files"
-              icon={GitBranch}
-              items={memory.frequentlyChangedFiles}
-              emptyText="No changed-file history yet."
-            />
-            <CountList
-              title="Repeated risk signals"
-              icon={BarChart3}
-              items={memory.repeatedRiskSignals}
-              emptyText="No repeated risk signals yet."
-            />
-            <CountList
-              title="Common recommended tests"
-              icon={TestTube2}
-              items={memory.commonRecommendedTests}
-              emptyText="No recommended tests have been captured yet."
-            />
+            <CountList title="High-risk files" icon={FileWarning} items={memory.highRiskFiles} emptyText="No file has appeared in a high-risk analysis yet." />
+            <CountList title="Frequently changed files" icon={GitBranch} items={memory.frequentlyChangedFiles} emptyText="No changed-file history yet." />
+            <CountList title="Repeated risk signals" icon={BarChart3} items={memory.repeatedRiskSignals} emptyText="No repeated risk signals yet." />
+            <CountList title="Common recommended tests" icon={TestTube2} items={memory.commonRecommendedTests} emptyText="No recommended tests have been captured yet." />
           </div>
 
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <h2 className="font-heading font-semibold text-sm text-slate-900 mb-3">Recent analyses</h2>
-            <div className="space-y-3">
-              {analyses.slice(0, 12).map((analysis) => (
-                <div key={analysis.id || analysis.created_date} className="border border-slate-100 rounded-lg p-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className={riskStyles[analysis.risk_level] || riskStyles.unknown}>
-                        {analysis.risk_level || "unknown"} risk
-                      </Badge>
-                      {analysis.storage_source && (
-                        <Badge variant="outline" className="bg-slate-50 text-slate-500 border-slate-200">
-                          {analysis.storage_source}
-                        </Badge>
-                      )}
-                    </div>
-                    <span className="text-xs text-slate-400">
-                      {analysis.created_date ? new Date(analysis.created_date).toLocaleString() : ""}
-                    </span>
-                  </div>
-                  {analysis.changed_files?.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mb-2">
-                      {analysis.changed_files.slice(0, 5).map((file) => (
-                        <span key={file} className="text-xs font-mono bg-slate-100 text-slate-600 px-2 py-1 rounded-md">
-                          {file}
-                        </span>
-                      ))}
-                      {analysis.changed_files.length > 5 && (
-                        <span className="text-xs text-slate-400 px-2 py-1">+{analysis.changed_files.length - 5} more</span>
-                      )}
-                    </div>
-                  )}
-                  <p className="text-sm text-slate-500 line-clamp-3">
-                    {(analysis.result || "").replace(/[#*_`]/g, "").slice(0, 260)}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
+          <RiskMemoryRecentAnalyses analyses={analyses} />
         </>
       )}
     </div>
