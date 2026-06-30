@@ -2,6 +2,7 @@
 // Deterministic, read-only, structured JSON.
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+declare const Deno: any;
 type JsonMap = Record<string, any>;
 
 const corsHeaders: Record<string, string> = {
