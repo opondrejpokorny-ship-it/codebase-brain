@@ -18,6 +18,10 @@ function isMissingContextRelation(relation) {
   return relation?.relation_type === "alias_unresolved" || relation?.relation_type === "unresolved_relative";
 }
 
+function isInternalContextRelation(relation) {
+  return relation?.target_kind === "internal_file" || Boolean(relation?.to_file);
+}
+
 function suggestedMissingPath(importPath = "") {
   const value = String(importPath || "");
   if (value.startsWith("@/") || value.startsWith("~/")) {
@@ -58,13 +62,41 @@ function formatReasons(reasons = []) {
   return reasons.map((reason) => `  - ${reason}`).join("\n");
 }
 
-function buildCopyText({ contextPack, selectedFiles, directChangedRelations, otherContextRelations, missingContextRelations, efficiency }) {
+function buildCoverageSummary(directChangedRelations = [], missingContextRelations = []) {
+  const resolvedInternal = directChangedRelations.filter(isInternalContextRelation).length;
+  const missing = missingContextRelations.length;
+  const total = resolvedInternal + missing;
+  const score = total ? Math.round((resolvedInternal / total) * 100) : 100;
+
+  let status = "complete";
+  if (score < 50) status = "low";
+  else if (score < 80) status = "partial";
+  else if (score < 100) status = "good";
+
+  return {
+    status,
+    score,
+    resolvedInternal,
+    missing,
+    total,
+  };
+}
+
+function coverageBadgeClass(status) {
+  if (status === "complete" || status === "good") return "bg-emerald-50 text-emerald-700 border-emerald-200";
+  if (status === "partial") return "bg-amber-50 text-amber-700 border-amber-200";
+  return "bg-red-50 text-red-700 border-red-200";
+}
+
+function buildCopyText({ contextPack, selectedFiles, directChangedRelations, otherContextRelations, missingContextRelations, coverage, efficiency }) {
   return `# Codebase Brain Context Pack Summary
 
 Selected files: ${selectedFiles.length}
 Selected tokens: ${formatEstimatedTokens(efficiency.selectedTokens || contextPack.estimatedTokens || 0)}
 Full repo estimate: ${formatEstimatedTokens(efficiency.fullRepoTokens || 0)}
 Estimated savings: ${efficiency.savingsPercent || 0}%
+Context coverage: ${coverage.status} · ${coverage.score}%
+Resolved internal imports: ${coverage.resolvedInternal}/${coverage.total}
 Missing context candidates: ${missingContextRelations.length}
 
 ## Context warnings
@@ -105,6 +137,29 @@ function RelationList({ title, relations = [], limit = 12 }) {
           <p className="text-xs text-slate-400">+{relations.length - limit} more relations</p>
         )}
       </div>
+    </div>
+  );
+}
+
+function CoverageCard({ coverage }) {
+  return (
+    <div className="mb-4 rounded-lg bg-slate-50 border border-slate-100 p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-medium text-slate-700">Context coverage</p>
+          <p className="text-xs text-slate-500 mt-1">
+            Resolved internal imports from changed files: {coverage.resolvedInternal}/{coverage.total}
+          </p>
+        </div>
+        <Badge variant="outline" className={coverageBadgeClass(coverage.status)}>
+          {coverage.status} · {coverage.score}%
+        </Badge>
+      </div>
+      {coverage.missing > 0 && (
+        <p className="text-xs text-amber-700 mt-2">
+          {coverage.missing} direct import target{coverage.missing === 1 ? "" : "s"} missing from the stored sample.
+        </p>
+      )}
     </div>
   );
 }
@@ -153,9 +208,10 @@ export default function ContextPackInspector({ contextPack, changedFiles = [] })
   const directChangedRelations = changedConnectedRelations.filter((relation) => !isMissingContextRelation(relation));
   const otherContextRelations = selectedRelations.filter((relation) => !isChangedFileRelation(relation, changedSet) && !isMissingContextRelation(relation));
   const missingPathGuesses = uniqueMissingPathGuesses(missingContextRelations);
+  const coverage = buildCoverageSummary(directChangedRelations, missingContextRelations);
 
   const handleCopy = async () => {
-    const text = buildCopyText({ contextPack, selectedFiles, directChangedRelations, otherContextRelations, missingContextRelations, efficiency });
+    const text = buildCopyText({ contextPack, selectedFiles, directChangedRelations, otherContextRelations, missingContextRelations, coverage, efficiency });
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
@@ -213,11 +269,7 @@ export default function ContextPackInspector({ contextPack, changedFiles = [] })
         </div>
       </div>
 
-      {missingContextRelations.length > 0 && (
-        <div className="mb-4 rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-xs text-amber-800">
-          Context coverage note: {missingContextRelations.length} direct import target{missingContextRelations.length === 1 ? "" : "s"} from changed files are missing from the stored sample. The selected context is still usable, but importing those files would improve graph completeness.
-        </div>
-      )}
+      <CoverageCard coverage={coverage} />
 
       {warnings.length > 0 && (
         <div className="mb-4 rounded-lg bg-amber-50 border border-amber-100 p-3">
