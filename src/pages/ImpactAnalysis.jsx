@@ -492,7 +492,7 @@ export default function ImpactAnalysis() {
             </div>
           </div>
 
-          {contextPackPreview && <ContextPackInspector contextPack={contextPackPreview} />}
+          {contextPackPreview && <ContextPackInspector contextPack={contextPackPreview} changedFiles={changedFiles} />}
 
           <div className="bg-amber-50 rounded-xl border border-amber-200 p-4 text-sm text-amber-800 flex gap-2">
             <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
