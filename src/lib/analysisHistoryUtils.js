@@ -166,3 +166,41 @@ export function buildRiskMemory(analyses = []) {
     commonRecommendedTests: sortedCounts(recommendedTests, 8),
   };
 }
+
+function formatCountList(items = [], fallback = "None") {
+  if (!items.length) return fallback;
+  return items.map((item) => `- ${item.name}: ${item.count}x`).join("\n");
+}
+
+export function formatRiskMemoryForPrompt(analyses = [], changedFiles = [], relatedFiles = [], riskSignals = []) {
+  const memory = buildRiskMemory(analyses);
+  const changed = new Set(normalizeList(changedFiles));
+  const related = new Set(normalizeList(relatedFiles));
+  const signals = new Set(normalizeList(riskSignals));
+
+  const matchingChangedFiles = memory.frequentlyChangedFiles.filter((item) => changed.has(item.name));
+  const matchingHighRiskFiles = memory.highRiskFiles.filter((item) => changed.has(item.name) || related.has(item.name));
+  const matchingRiskSignals = memory.repeatedRiskSignals.filter((item) => signals.has(item.name));
+
+  if (!memory.totalAnalyses) {
+    return "No previous impact analyses are available for this project.";
+  }
+
+  return `Previous impact analyses available: ${memory.totalAnalyses}
+Risk distribution: high ${memory.riskCounts.high}, medium ${memory.riskCounts.medium}, low ${memory.riskCounts.low}
+
+Changed files that appear repeatedly in history:
+${formatCountList(matchingChangedFiles)}
+
+Changed or related files that previously appeared in high-risk analyses:
+${formatCountList(matchingHighRiskFiles)}
+
+Risk signals repeated in history:
+${formatCountList(matchingRiskSignals)}
+
+Most frequent changed files overall:
+${formatCountList(memory.frequentlyChangedFiles.slice(0, 5))}
+
+Common recommended tests from previous analyses:
+${formatCountList(memory.commonRecommendedTests.slice(0, 5))}`;
+}
