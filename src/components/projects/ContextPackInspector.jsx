@@ -1,8 +1,40 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, ClipboardCopy, FileText, GitBranch, Info, PackageSearch, TriangleAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatEstimatedTokens } from "@/lib/tokenBudgetUtils";
+
+const MISSING_CONTEXT_QUEUE_KEY = "codebase_brain_missing_context_queue_v1";
+
+function storageAvailable() {
+  try {
+    return typeof window !== "undefined" && Boolean(window.localStorage);
+  } catch {
+    return false;
+  }
+}
+
+function safeJsonParse(value, fallback) {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+}
+
+function readMissingContextQueue(projectId) {
+  if (!projectId || !storageAvailable()) return [];
+  const all = safeJsonParse(window.localStorage.getItem(MISSING_CONTEXT_QUEUE_KEY) || "{}", {});
+  return Array.isArray(all[projectId]) ? all[projectId] : [];
+}
+
+function writeMissingContextQueue(projectId, queue = []) {
+  if (!projectId || !storageAvailable()) return [];
+  const all = safeJsonParse(window.localStorage.getItem(MISSING_CONTEXT_QUEUE_KEY) || "{}", {});
+  all[projectId] = queue;
+  window.localStorage.setItem(MISSING_CONTEXT_QUEUE_KEY, JSON.stringify(all));
+  return queue;
+}
 
 function relationLabel(relation) {
   if (!relation) return "";
@@ -41,6 +73,36 @@ function missingContextLabel(relation) {
     ? `try ${target}.{js,jsx,ts,tsx} or ${target}/index.{js,jsx,ts,tsx}`
     : "target path could not be inferred";
   return `${relation.from_file} imports ${relation.import_path} → missing from stored context; ${suffix}`;
+}
+
+function queueItemFromRelation(relation) {
+  const target = bestMissingPathGuess(relation);
+  if (!target) return null;
+  return {
+    target,
+    source_file: relation?.from_file || "",
+    import_path: relation?.import_path || "",
+    relation_type: relation?.relation_type || "missing_context",
+    added_at: new Date().toISOString(),
+  };
+}
+
+function addMissingTargetsToQueue(projectId, relations = []) {
+  if (!projectId) return [];
+  const current = readMissingContextQueue(projectId);
+  const byTarget = new Map(current.map((item) => [item.target, item]));
+
+  for (const relation of relations) {
+    const item = queueItemFromRelation(relation);
+    if (!item) continue;
+    byTarget.set(item.target, {
+      ...(byTarget.get(item.target) || {}),
+      ...item,
+    });
+  }
+
+  const next = [...byTarget.values()].sort((a, b) => String(a.target).localeCompare(String(b.target)));
+  return writeMissingContextQueue(projectId, next);
 }
 
 function uniqueRelations(relations = []) {
@@ -164,7 +226,7 @@ function CoverageCard({ coverage }) {
   );
 }
 
-function MissingContextList({ relations = [], onCopyPaths, copiedPaths }) {
+function MissingContextList({ relations = [], onCopyPaths, copiedPaths, onAddToQueue, queued, queuedCount, canQueue }) {
   if (!relations.length) return null;
 
   return (
@@ -174,14 +236,27 @@ function MissingContextList({ relations = [], onCopyPaths, copiedPaths }) {
           <TriangleAlert className="w-3.5 h-3.5" />
           Missing context candidates
         </p>
-        <Button type="button" variant="outline" size="sm" onClick={onCopyPaths} className="h-7 gap-1.5 cursor-pointer text-xs bg-white/70">
-          {copiedPaths ? <Check className="w-3 h-3" /> : <ClipboardCopy className="w-3 h-3" />}
-          {copiedPaths ? "Copied" : "Copy targets"}
-        </Button>
+        <div className="flex flex-wrap justify-end gap-1.5">
+          <Button type="button" variant="outline" size="sm" onClick={onCopyPaths} className="h-7 gap-1.5 cursor-pointer text-xs bg-white/70">
+            {copiedPaths ? <Check className="w-3 h-3" /> : <ClipboardCopy className="w-3 h-3" />}
+            {copiedPaths ? "Copied" : "Copy targets"}
+          </Button>
+          {canQueue && (
+            <Button type="button" variant="outline" size="sm" onClick={onAddToQueue} className="h-7 gap-1.5 cursor-pointer text-xs bg-white/70">
+              {queued ? <Check className="w-3 h-3" /> : <PackageSearch className="w-3 h-3" />}
+              {queued ? "Queued" : "Add to queue"}
+            </Button>
+          )}
+        </div>
       </div>
       <p className="text-xs text-amber-700 mb-2">
         {relations.length} import target{relations.length === 1 ? "" : "s"} from changed files are missing from the stored sample. Add these files to improve graph coverage.
       </p>
+      {queuedCount > 0 && (
+        <p className="text-xs text-amber-800 mb-2">
+          {queuedCount} target{queuedCount === 1 ? "" : "s"} currently queued for the next import.
+        </p>
+      )}
       <div className="space-y-1 max-h-36 overflow-y-auto">
         {relations.map((relation, index) => (
           <p key={`${relation.from_file}-${relation.import_path}-${index}`} className="text-xs text-amber-700 break-all">
@@ -193,9 +268,17 @@ function MissingContextList({ relations = [], onCopyPaths, copiedPaths }) {
   );
 }
 
-export default function ContextPackInspector({ contextPack, changedFiles = [] }) {
+export default function ContextPackInspector({ contextPack, changedFiles = [], projectId = null }) {
   const [copied, setCopied] = useState(false);
   const [copiedPaths, setCopiedPaths] = useState(false);
+  const [queued, setQueued] = useState(false);
+  const [queuedCount, setQueuedCount] = useState(() => readMissingContextQueue(projectId).length);
+
+  useEffect(() => {
+    setQueuedCount(readMissingContextQueue(projectId).length);
+    setQueued(false);
+  }, [projectId]);
+
   if (!contextPack) return null;
 
   const selectedFiles = contextPack.selectedFiles || [];
@@ -229,6 +312,12 @@ export default function ContextPackInspector({ contextPack, changedFiles = [] })
     } catch {
       setCopiedPaths(false);
     }
+  };
+
+  const handleAddToQueue = () => {
+    const next = addMissingTargetsToQueue(projectId, missingContextRelations);
+    setQueuedCount(next.length);
+    setQueued(true);
   };
 
   return (
@@ -311,7 +400,15 @@ export default function ContextPackInspector({ contextPack, changedFiles = [] })
         })}
       </div>
 
-      <MissingContextList relations={missingContextRelations} onCopyPaths={handleCopyMissingPaths} copiedPaths={copiedPaths} />
+      <MissingContextList
+        relations={missingContextRelations}
+        onCopyPaths={handleCopyMissingPaths}
+        copiedPaths={copiedPaths}
+        onAddToQueue={handleAddToQueue}
+        queued={queued}
+        queuedCount={queuedCount}
+        canQueue={Boolean(projectId)}
+      />
       <RelationList title="Graph relations connected to changed files" relations={directChangedRelations} />
       <RelationList title="Other selected context relations" relations={otherContextRelations} limit={8} />
     </div>
