@@ -17,7 +17,8 @@ A user can:
 7. view import metadata and warnings,
 8. view lightweight import/require relationships,
 9. ask questions about the stored codebase context,
-10. paste a public GitHub PR URL, diff, or changed file list for impact analysis.
+10. paste a public GitHub PR URL, diff, or changed file list for impact analysis,
+11. see whether the PR repository matches the imported project repository.
 
 ## What is included now
 
@@ -33,6 +34,7 @@ A user can:
 - Code Graph Lite import/require relations
 - Manual PR / diff impact analysis enhanced with graph relations
 - Public GitHub PR diff fetch with backend-first flow and browser fallback
+- Project/PR repository compatibility warning
 - AI project summary through Base44 `Core.InvokeLLM`
 - AI chat over stored context with a safe phase-1 fallback
 - Documentation for next phases
@@ -73,6 +75,21 @@ Open a project and click **Impact Analysis**. Paste a public GitHub PR URL, git 
 - missing context.
 
 Public PR fetch is still read-only and lightweight. It does not run tests, inspect CI logs, or comment on GitHub yet.
+
+## Repository compatibility warning
+
+When a public PR is fetched, the app compares:
+
+- the repository stored on the current project,
+- the repository from the fetched PR.
+
+It shows:
+
+- `match` when they are the same,
+- `mismatch` when they differ,
+- `unknown` when comparison cannot be verified.
+
+Mismatched PRs are warned but not blocked.
 
 ## Public GitHub PR fetch limits
 
@@ -165,11 +182,12 @@ VITE_BASE44_APP_BASE_URL=https://your-app.base44.app
 - `docs/phase-4-manual-impact-analysis.md`
 - `docs/phase-5-code-graph-lite.md`
 - `docs/phase-6-public-pr-fetch.md`
+- `docs/phase-7-repository-compatibility.md`
 - `docs/architecture.md`
 
 ## Next phases
 
-1. Project/PR repository compatibility warning.
+1. GitHub App planning docs: permissions, webhooks, and review safety rules.
 2. GitHub App + private repo import + automated PR review.
 3. MCP server for Codex/Cursor/Claude Code.
 
