@@ -61,15 +61,7 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
   const queueButtonActive = queued || allCurrentMissingTargetsQueued;
 
   const handleCopy = async () => {
-    const text = buildContextPackCopyText({
-      contextPack,
-      selectedFiles,
-      directChangedRelations,
-      selectedContextRelations,
-      missingContextRelations,
-      coverage,
-      efficiency,
-    });
+    const text = buildContextPackCopyText({ contextPack, selectedFiles, directChangedRelations, selectedContextRelations, missingContextRelations, coverage, efficiency });
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
@@ -117,10 +109,7 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
     <div className="bg-white rounded-xl border border-slate-200 p-5">
       <div className="flex items-start justify-between gap-3 mb-4">
         <div>
-          <h3 className="font-heading font-semibold text-sm text-slate-900 flex items-center gap-2">
-            <PackageSearch className="w-4 h-4 text-slate-500" />
-            Context Pack Inspector
-          </h3>
+          <h3 className="font-heading font-semibold text-sm text-slate-900 flex items-center gap-2"><PackageSearch className="w-4 h-4 text-slate-500" />Context Pack Inspector</h3>
           <p className="text-xs text-slate-400 mt-1">Shows the selected files and why they were included.</p>
         </div>
         <div className="flex flex-col items-end gap-2 flex-shrink-0">
@@ -140,27 +129,11 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
 
       <CoverageCard coverage={coverage} />
 
-      {warnings.length > 0 && (
-        <div className="mb-4 rounded-lg bg-amber-50 border border-amber-100 p-3">
-          <p className="text-xs font-medium text-amber-800 flex items-center gap-1.5 mb-2"><TriangleAlert className="w-3.5 h-3.5" />Context warnings</p>
-          <div className="space-y-1">{warnings.map((warning) => <p key={warning} className="text-xs text-amber-700">• {warning}</p>)}</div>
-        </div>
-      )}
+      {warnings.length > 0 && <div className="mb-4 rounded-lg bg-amber-50 border border-amber-100 p-3"><p className="text-xs font-medium text-amber-800 flex items-center gap-1.5 mb-2"><TriangleAlert className="w-3.5 h-3.5" />Context warnings</p><div className="space-y-1">{warnings.map((warning) => <p key={warning} className="text-xs text-amber-700">• {warning}</p>)}</div></div>}
 
-      <SelectedFilesList files={selectedFiles} reasonsByPath={contextPack.reasons || {}} />
+      <SelectedFilesList files={selectedFiles} reasonsByPath={contextPack.reasons || {}} relevanceScores={contextPack.relevanceScores || {}} />
 
-      <MissingContextList
-        relations={missingContextRelations}
-        onCopyPaths={handleCopyMissingPaths}
-        copiedPaths={copiedPaths}
-        onAddToQueue={handleAddToQueue}
-        queued={queueButtonActive}
-        queuedTargets={queuedTargets}
-        onCopyQueue={handleCopyQueue}
-        copiedQueue={copiedQueue}
-        onClearQueue={handleClearQueue}
-        canQueue={Boolean(projectId)}
-      />
+      <MissingContextList relations={missingContextRelations} onCopyPaths={handleCopyMissingPaths} copiedPaths={copiedPaths} onAddToQueue={handleAddToQueue} queued={queueButtonActive} queuedTargets={queuedTargets} onCopyQueue={handleCopyQueue} copiedQueue={copiedQueue} onClearQueue={handleClearQueue} canQueue={Boolean(projectId)} />
       <RelationList title="Graph relations connected to changed files" relations={directChangedRelations} />
       <RelationList title="Relations among selected context files" relations={selectedContextRelations} limit={8} />
     </div>
