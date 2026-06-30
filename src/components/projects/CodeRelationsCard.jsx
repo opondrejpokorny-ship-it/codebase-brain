@@ -1,18 +1,19 @@
-import { GitBranch, Link2, Package, AlertTriangle } from "lucide-react";
+import { GitBranch, Link2, Package, AlertTriangle, Network } from "lucide-react";
 import { buildCodeRelations, summarizeCodeGraph } from "@/lib/codeGraphUtils";
 
 function relationLabel(relation) {
-  if (relation.relation_type === "external_import") return relation.import_path;
+  if (relation.target_kind === "external_package") return relation.package_name || relation.import_path;
   return relation.to_file || relation.import_path;
 }
 
-export default function CodeRelationsCard({ files = [] }) {
-  const relations = buildCodeRelations(files);
+export default function CodeRelationsCard({ files = [], relations: providedRelations = null, relationSource = "in_memory" }) {
+  const relations = providedRelations || buildCodeRelations(files);
   const summary = summarizeCodeGraph(relations);
-  const internalRelations = relations.filter((relation) => relation.relation_type === "imports").slice(0, 12);
-  const externalImports = relations.filter((relation) => relation.relation_type === "external_import").slice(0, 8);
+  const internalRelations = relations.filter((relation) => relation.target_kind === "internal_file").slice(0, 12);
+  const externalImports = relations.filter((relation) => relation.target_kind === "external_package").slice(0, 18);
+  const unresolved = relations.filter((relation) => relation.target_kind === "unresolved" || relation.target_kind === "alias").slice(0, 10);
 
-  if (!files.length) return null;
+  if (!files.length && !relations.length) return null;
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-5">
@@ -22,14 +23,14 @@ export default function CodeRelationsCard({ files = [] }) {
             <GitBranch className="w-4 h-4 text-slate-500" />
             Code Graph Lite
           </h3>
-          <p className="text-xs text-slate-400 mt-1">Lightweight import/require relationships from stored files.</p>
+          <p className="text-xs text-slate-400 mt-1">Lightweight import/require relationships from stored files. Source: {relationSource}.</p>
         </div>
         <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-md">
           {summary.totalRelations} relations
         </span>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm mb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-sm mb-4">
         <div className="rounded-lg bg-slate-50 px-3 py-2">
           <p className="text-xs text-slate-400">Internal</p>
           <p className="font-semibold text-slate-800">{summary.internalRelations}</p>
@@ -43,6 +44,10 @@ export default function CodeRelationsCard({ files = [] }) {
           <p className="font-semibold text-slate-800">{summary.unresolvedRelativeImports}</p>
         </div>
         <div className="rounded-lg bg-slate-50 px-3 py-2">
+          <p className="text-xs text-slate-400">Alias unresolved</p>
+          <p className="font-semibold text-slate-800">{summary.aliasUnresolvedImports}</p>
+        </div>
+        <div className="rounded-lg bg-slate-50 px-3 py-2">
           <p className="text-xs text-slate-400">Files</p>
           <p className="font-semibold text-slate-800">{summary.touchedFiles}</p>
         </div>
@@ -54,6 +59,22 @@ export default function CodeRelationsCard({ files = [] }) {
         </div>
       ) : (
         <div className="space-y-4">
+          {summary.topConnectedFiles?.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <Network className="w-3 h-3" />
+                Top connected files
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {summary.topConnectedFiles.slice(0, 8).map((item) => (
+                  <span key={item.path} className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-md font-mono">
+                    {item.path} · {item.score}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
           {internalRelations.length > 0 && (
             <div>
               <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
@@ -65,11 +86,6 @@ export default function CodeRelationsCard({ files = [] }) {
                   <div key={`${relation.from_file}-${relation.import_path}-${relation.to_file || "unresolved"}`} className="text-xs rounded-lg border border-slate-100 px-3 py-2">
                     <p className="font-mono text-slate-700 truncate">{relation.from_file}</p>
                     <p className="font-mono text-slate-400 truncate">→ {relationLabel(relation)}</p>
-                    {!relation.resolved && (
-                      <p className="text-amber-600 flex items-center gap-1 mt-1">
-                        <AlertTriangle className="w-3 h-3" /> unresolved in imported sample
-                      </p>
-                    )}
                   </div>
                 ))}
               </div>
@@ -80,15 +96,25 @@ export default function CodeRelationsCard({ files = [] }) {
             <div>
               <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                 <Package className="w-3 h-3" />
-                External imports
+                External packages
               </p>
               <div className="flex flex-wrap gap-1.5">
-                {[...new Set(externalImports.map((relation) => relation.import_path))].slice(0, 18).map((name) => (
+                {[...new Set(externalImports.map((relation) => relation.package_name || relation.import_path))].slice(0, 18).map((name) => (
                   <span key={name} className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-md font-mono">
                     {name}
                   </span>
                 ))}
               </div>
+            </div>
+          )}
+
+          {unresolved.length > 0 && (
+            <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+              <p className="font-medium flex items-center gap-1.5 mb-1">
+                <AlertTriangle className="w-3 h-3" />
+                Graph coverage warning
+              </p>
+              <p>{unresolved.length} shown unresolved imports may mean the imported repository sample is incomplete or aliases need deeper config support.</p>
             </div>
           )}
         </div>
