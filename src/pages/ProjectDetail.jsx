@@ -7,7 +7,12 @@ import { base44 } from "@/api/base44Client";
 import ChatBox from "@/components/projects/ChatBox";
 import CodeRelationsCard from "@/components/projects/CodeRelationsCard";
 import ImportMetadataCard from "@/components/projects/ImportMetadataCard";
-import { clearMissingContextQueue, formatMissingContextQueue, readMissingContextQueue } from "@/lib/missingContextQueueUtils";
+import {
+  clearMissingContextQueue,
+  formatMissingContextImportPrompt,
+  formatMissingContextQueue,
+  readMissingContextQueue,
+} from "@/lib/missingContextQueueUtils";
 import { useNavigate } from "react-router-dom";
 import {
   AlertDialog,
@@ -37,8 +42,9 @@ const langColors = {
   JSON: "bg-slate-100 text-slate-600",
 };
 
-function MissingContextQueueCard({ projectId, queue = [], onClear }) {
+function MissingContextQueueCard({ project, projectId, queue = [], onClear }) {
   const [copied, setCopied] = useState(false);
+  const [copiedPrompt, setCopiedPrompt] = useState(false);
 
   if (!queue.length) return null;
 
@@ -52,10 +58,27 @@ function MissingContextQueueCard({ projectId, queue = [], onClear }) {
     }
   };
 
+  const handleCopyPrompt = async () => {
+    try {
+      await navigator.clipboard.writeText(
+        formatMissingContextImportPrompt({
+          projectName: project?.name || "this project",
+          repositoryUrl: project?.repository_url || "",
+          queue,
+        })
+      );
+      setCopiedPrompt(true);
+      window.setTimeout(() => setCopiedPrompt(false), 1600);
+    } catch {
+      setCopiedPrompt(false);
+    }
+  };
+
   const handleClear = () => {
     clearMissingContextQueue(projectId);
     onClear?.();
     setCopied(false);
+    setCopiedPrompt(false);
   };
 
   return (
@@ -71,6 +94,10 @@ function MissingContextQueueCard({ projectId, queue = [], onClear }) {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={handleCopyPrompt} className="cursor-pointer gap-1.5 bg-white/70">
+            {copiedPrompt ? <Check className="w-3.5 h-3.5" /> : <ClipboardCopy className="w-3.5 h-3.5" />}
+            {copiedPrompt ? "Prompt copied" : "Copy import prompt"}
+          </Button>
           <Button type="button" variant="outline" size="sm" onClick={handleCopy} className="cursor-pointer gap-1.5 bg-white/70">
             {copied ? <Check className="w-3.5 h-3.5" /> : <ClipboardCopy className="w-3.5 h-3.5" />}
             {copied ? "Copied" : "Copy queue"}
@@ -88,7 +115,7 @@ function MissingContextQueueCard({ projectId, queue = [], onClear }) {
         ))}
       </div>
       <p className="text-xs text-amber-700 mt-3">
-        Re-index automation is not enabled yet; use Copy queue to paste these targets into the next import step.
+        Re-index automation is not enabled yet; use Copy import prompt or Copy queue for the next import step.
       </p>
     </div>
   );
@@ -227,7 +254,7 @@ export default function ProjectDetail() {
       </div>
 
       <ImportMetadataCard project={project} />
-      <MissingContextQueueCard projectId={id} queue={missingContextQueue} onClear={() => setMissingContextQueue([])} />
+      <MissingContextQueueCard project={project} projectId={id} queue={missingContextQueue} onClear={() => setMissingContextQueue([])} />
       <CodeRelationsCard files={files} />
 
       <div className="grid lg:grid-cols-2 gap-6">
