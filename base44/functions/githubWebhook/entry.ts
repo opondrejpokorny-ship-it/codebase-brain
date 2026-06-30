@@ -7,6 +7,13 @@ declare const Deno: any;
 
 type JsonMap = Record<string, any>;
 
+type DeliveryPersistenceResult = {
+  persisted: boolean;
+  duplicate: boolean;
+  reason?: string;
+  record_id?: string | null;
+};
+
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -44,6 +51,10 @@ function envFlag(name: string): boolean {
 
 function processingEnabled(): boolean {
   return envFlag("GITHUB_APP_ENABLED") && envFlag("GITHUB_WEBHOOK_PROCESSING_ENABLED");
+}
+
+function deliveryLoggingEnabled(): boolean {
+  return processingEnabled() && envFlag("GITHUB_WEBHOOK_DELIVERY_LOGGING_ENABLED");
 }
 
 function header(request: Request, name: string): string {
@@ -122,7 +133,7 @@ function classifyEvent(event: string, action: string | null): { status: string; 
     return { status: "ignored", reason: `unsupported pull_request action: ${action || "unknown"}` };
   }
 
-  return { status: "received", reason: "supported but processing is not implemented in skeleton" };
+  return { status: "received", reason: "supported but processing is not implemented beyond delivery logging" };
 }
 
 function buildDeliverySnapshot(request: Request, payload: JsonMap, status: string, reason: string): JsonMap {
@@ -154,6 +165,73 @@ async function parsePayload(rawBody: string): Promise<{ payload: JsonMap | null;
   }
 }
 
+function deliveryEntityApi(): any | null {
+  try {
+    const candidate = (globalThis as any)?.base44?.entities?.GitHubWebhookDelivery;
+    if (candidate?.filter && candidate?.create && candidate?.update) return candidate;
+    return null;
+  } catch (_) {
+    return null;
+  }
+}
+
+async function persistDeliverySnapshot(delivery: JsonMap): Promise<DeliveryPersistenceResult> {
+  if (!deliveryLoggingEnabled()) {
+    return {
+      persisted: false,
+      duplicate: false,
+      reason: "GITHUB_WEBHOOK_DELIVERY_LOGGING_ENABLED is disabled",
+    };
+  }
+
+  if (!delivery.delivery_id) {
+    return {
+      persisted: false,
+      duplicate: false,
+      reason: "missing X-GitHub-Delivery header",
+    };
+  }
+
+  const entity = deliveryEntityApi();
+  if (!entity) {
+    return {
+      persisted: false,
+      duplicate: false,
+      reason: "Base44 GitHubWebhookDelivery entity API is not available in this function runtime",
+    };
+  }
+
+  try {
+    const existing = await entity.filter({ delivery_id: delivery.delivery_id });
+    if (Array.isArray(existing) && existing.length > 0) {
+      const record = existing[0];
+      return {
+        persisted: true,
+        duplicate: true,
+        record_id: record?.id || null,
+        reason: "duplicate delivery ignored",
+      };
+    }
+
+    const created = await entity.create({
+      ...delivery,
+      processed_at: new Date().toISOString(),
+    });
+
+    return {
+      persisted: true,
+      duplicate: false,
+      record_id: created?.id || null,
+    };
+  } catch (error) {
+    return {
+      persisted: false,
+      duplicate: false,
+      reason: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
 async function handleRequest(request: Request): Promise<Response> {
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
@@ -174,9 +252,15 @@ async function handleRequest(request: Request): Promise<Response> {
       reason: "GitHub webhook processing is disabled by feature flags",
       event,
       delivery_id: deliveryId,
+      persistence: {
+        persisted: false,
+        duplicate: false,
+        reason: "processing disabled",
+      },
       feature_flags: {
         GITHUB_APP_ENABLED: envFlag("GITHUB_APP_ENABLED"),
         GITHUB_WEBHOOK_PROCESSING_ENABLED: envFlag("GITHUB_WEBHOOK_PROCESSING_ENABLED"),
+        GITHUB_WEBHOOK_DELIVERY_LOGGING_ENABLED: envFlag("GITHUB_WEBHOOK_DELIVERY_LOGGING_ENABLED"),
         GITHUB_PRIVATE_IMPORT_ENABLED: envFlag("GITHUB_PRIVATE_IMPORT_ENABLED"),
         GITHUB_AUTO_ANALYZE_PRS: envFlag("GITHUB_AUTO_ANALYZE_PRS"),
         GITHUB_PR_POSTING_ENABLED: envFlag("GITHUB_PR_POSTING_ENABLED"),
@@ -199,10 +283,21 @@ async function handleRequest(request: Request): Promise<Response> {
   const action = payload?.action || null;
   const classification = classifyEvent(event, action);
   const delivery = buildDeliverySnapshot(request, payload, classification.status, classification.reason);
+  const persistence = await persistDeliverySnapshot(delivery);
 
-  // TODO Phase 9B:
-  // - persist GitHubWebhookDelivery
-  // - dedupe by delivery_id
+  if (persistence.duplicate) {
+    return jsonResponse({
+      status: "duplicate",
+      reason: "duplicate delivery ignored",
+      delivery,
+      persistence,
+      writes_enabled: false,
+      analysis_started: false,
+    });
+  }
+
+  // TODO Phase 10:
+  // - provide a confirmed Base44 entity API binding if the runtime does not expose globalThis.base44
   // - store installation metadata
   // - for pull_request events, enqueue internal analysis only when GITHUB_AUTO_ANALYZE_PRS=true
   // - never write to GitHub unless GITHUB_PR_POSTING_ENABLED=true and a user-approved posting flow exists
@@ -211,6 +306,7 @@ async function handleRequest(request: Request): Promise<Response> {
     status: classification.status,
     reason: classification.reason,
     delivery,
+    persistence,
     writes_enabled: false,
     analysis_started: false,
   });
