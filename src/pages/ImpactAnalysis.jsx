@@ -2,6 +2,7 @@ import { Link, useParams } from "react-router-dom";
 import { AlertTriangle, ArrowLeft, Loader2 } from "lucide-react";
 import AnalysisResultPanel from "@/components/projects/impact/AnalysisResultPanel";
 import ChangeInputPanel from "@/components/projects/impact/ChangeInputPanel";
+import ContextDepthSelector from "@/components/projects/impact/ContextDepthSelector";
 import ImpactHeader from "@/components/projects/impact/ImpactHeader";
 import PreScanPanel from "@/components/projects/impact/PreScanPanel";
 import PublicPrPanel from "@/components/projects/impact/PublicPrPanel";
@@ -57,6 +58,8 @@ export default function ImpactAnalysis() {
             fetchingPr={impact.fetchingPr}
             onFetchPr={impact.handleFetchPr}
           />
+
+          <ContextDepthSelector value={impact.contextDepth} onChange={impact.setContextDepth} />
 
           <ChangeInputPanel
             changeInput={impact.changeInput}
