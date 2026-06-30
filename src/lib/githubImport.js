@@ -22,6 +22,10 @@ const SKIP_PATH_PARTS = new Set([
 ]);
 
 const SKIP_FILENAMES = new Set([
+  ".env",
+  ".env.local",
+  ".env.development",
+  ".env.production",
   "package-lock.json",
   "pnpm-lock.yaml",
   "yarn.lock",
@@ -92,14 +96,19 @@ export function parseGitHubRepoUrl(url = "") {
   };
 }
 
+function isSafeEnvExample(lowerFilename) {
+  if (!lowerFilename.startsWith(".env")) return true;
+  return lowerFilename.includes("example") || lowerFilename.includes("sample") || lowerFilename.includes("template");
+}
+
 function isLikelyTextFile(path = "") {
   const filename = path.split("/").pop() || "";
   const lower = filename.toLowerCase();
 
   if (SKIP_FILENAMES.has(lower)) return false;
+  if (!isSafeEnvExample(lower)) return false;
   if (lower === "dockerfile") return true;
   if (lower.startsWith("readme")) return true;
-  if (lower.startsWith(".env")) return true;
   if (!filename.includes(".")) return false;
 
   const ext = filename.split(".").pop().toLowerCase();
