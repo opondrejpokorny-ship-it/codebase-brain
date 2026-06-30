@@ -42,6 +42,28 @@ const exampleDiff = `diff --git a/src/api/payments.js b/src/api/payments.js
 
 src/pages/Checkout.jsx`;
 
+function optionalEntity(entityName) {
+  try {
+    const entity = base44?.entities?.[entityName];
+    return entity || null;
+  } catch {
+    return null;
+  }
+}
+
+function fallbackProjectFromFiles(projectId, storedFiles = []) {
+  if (!storedFiles.length) return null;
+  return {
+    id: projectId,
+    name: "Stored project context",
+    status: "indexed",
+    repository_url: null,
+    detected_stack: [],
+    summary: "Project metadata was not found, but stored files exist. Using available code context for impact analysis.",
+    metadata_missing: true,
+  };
+}
+
 async function fetchPublicGithubPrDiff(prUrl) {
   try {
     const res = await base44.functions.invoke("fetchPublicGithubPrDiff", {
@@ -77,17 +99,36 @@ export default function ImpactAnalysis() {
   const [analyzing, setAnalyzing] = useState(false);
 
   useEffect(() => {
-    Promise.all([
-      base44.entities.CodebaseProject.filter({ id }),
-      base44.entities.CodeFile.filter({ project_id: id }),
-      base44.entities.CodebaseAnalysis?.filter ? base44.entities.CodebaseAnalysis.filter({ project_id: id }, "created_date", 20) : Promise.resolve([]),
-    ])
-      .then(([projects, storedFiles, storedAnalyses]) => {
-        setProject(projects[0] || null);
-        setFiles(storedFiles || []);
-        setAnalyses(storedAnalyses || []);
-      })
-      .finally(() => setLoading(false));
+    let cancelled = false;
+
+    async function loadImpactContext() {
+      setLoading(true);
+      try {
+        const [projects, storedFiles] = await Promise.all([
+          base44.entities.CodebaseProject.filter({ id }).catch(() => []),
+          base44.entities.CodeFile.filter({ project_id: id }).catch(() => []),
+        ]);
+
+        const analysisEntity = optionalEntity("CodebaseAnalysis");
+        const storedAnalyses = analysisEntity?.filter
+          ? await analysisEntity.filter({ project_id: id }, "created_date", 20).catch(() => [])
+          : [];
+
+        if (!cancelled) {
+          setProject(projects?.[0] || fallbackProjectFromFiles(id, storedFiles || []));
+          setFiles(storedFiles || []);
+          setAnalyses(storedAnalyses || []);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    loadImpactContext();
+
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   const changedFiles = useMemo(() => extractChangedFiles(changeInput), [changeInput]);
@@ -148,7 +189,10 @@ export default function ImpactAnalysis() {
       setRiskLevel(parsedRisk);
 
       try {
-        const saved = await base44.entities.CodebaseAnalysis.create({
+        const analysisEntity = optionalEntity("CodebaseAnalysis");
+        if (!analysisEntity?.create) return;
+
+        const saved = await analysisEntity.create({
           project_id: id,
           type: prMeta ? "public_github_pr_impact" : "manual_diff_impact",
           input: changeInput,
@@ -181,7 +225,7 @@ export default function ImpactAnalysis() {
         });
         setAnalyses((prev) => [saved, ...prev].slice(0, 20));
       } catch {
-        // Keep the feature useful even if the new entity has not been created in Base44 yet.
+        // Analysis history is optional. Keep the analysis feature usable without the entity.
       }
     } catch (error) {
       toast({
@@ -202,12 +246,13 @@ export default function ImpactAnalysis() {
     );
   }
 
-  if (!project) {
+  if (!project && files.length === 0) {
     return (
       <div className="text-center py-20">
-        <p className="text-slate-500">Project not found.</p>
-        <Link to="/" className="text-sm text-slate-900 underline mt-2 inline-block cursor-pointer">
-          Back to Dashboard
+        <p className="text-slate-500">Project context not found.</p>
+        <p className="text-xs text-slate-400 mt-1">Open Impact Analysis from the project list so the route contains a real project ID.</p>
+        <Link to="/impact" className="text-sm text-slate-900 underline mt-2 inline-block cursor-pointer">
+          Pick a project
         </Link>
       </div>
     );
@@ -219,6 +264,13 @@ export default function ImpactAnalysis() {
         <ArrowLeft className="w-3.5 h-3.5" />
         Back to Project
       </Link>
+
+      {project?.metadata_missing && (
+        <div className="bg-amber-50 rounded-xl border border-amber-200 p-4 text-sm text-amber-800 flex gap-2">
+          <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+          <p>Project metadata was not found, but stored files exist. Impact analysis is using the available file context.</p>
+        </div>
+      )}
 
       <div className="bg-white rounded-xl border border-slate-200 p-6">
         <div className="flex items-start justify-between gap-4">
