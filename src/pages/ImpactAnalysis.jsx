@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, AlertTriangle, FileDiff, Loader2, Sparkles } from "lucide-react";
+import { ArrowLeft, AlertTriangle, FileDiff, GitBranch, Loader2, Sparkles } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { base44 } from "@/api/base44Client";
 import { useToast } from "@/components/ui/use-toast";
+import { buildCodeRelations, relatedPathsForChangedFiles, summarizeCodeGraph } from "@/lib/codeGraphUtils";
 import {
   buildImpactAnalysisPrompt,
   extractChangedFiles,
@@ -61,6 +62,9 @@ export default function ImpactAnalysis() {
   const changedFiles = useMemo(() => extractChangedFiles(changeInput), [changeInput]);
   const signals = useMemo(() => heuristicRiskSignals(changeInput, changedFiles), [changeInput, changedFiles]);
   const heuristicRisk = useMemo(() => initialRiskLevel(changeInput, changedFiles), [changeInput, changedFiles]);
+  const codeRelations = useMemo(() => buildCodeRelations(files), [files]);
+  const graphSummary = useMemo(() => summarizeCodeGraph(codeRelations), [codeRelations]);
+  const relatedPaths = useMemo(() => relatedPathsForChangedFiles(codeRelations, changedFiles), [codeRelations, changedFiles]);
 
   const handleAnalyze = async () => {
     if (!changeInput.trim()) {
@@ -90,6 +94,8 @@ export default function ImpactAnalysis() {
           risk_level: parsedRisk,
           changed_files: payload.changedFiles,
           risk_signals: payload.signals,
+          related_files: payload.relatedPaths,
+          relevant_relations: payload.relevantRelations.map((relation) => `${relation.from_file}->${relation.to_file || relation.import_path}`),
           relevant_files: payload.relevantFiles.map((file) => file.path),
           created_date: new Date().toISOString(),
         });
@@ -142,7 +148,7 @@ export default function ImpactAnalysis() {
               Manual PR / Diff Impact Analysis
             </h1>
             <p className="text-sm text-slate-500 mt-1">
-              Paste a diff or changed file list. Codebase Brain compares it with the stored project context.
+              Paste a diff or changed file list. Codebase Brain compares it with the stored project context and Code Graph Lite relations.
             </p>
           </div>
           <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200">
@@ -215,6 +221,29 @@ export default function ImpactAnalysis() {
                   </div>
                 ) : (
                   <p className="text-xs text-slate-400">No file paths detected yet.</p>
+                )}
+              </div>
+              <div>
+                <p className="text-xs text-slate-400 mb-1">Code Graph Lite</p>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-md bg-slate-50 px-2 py-1.5">
+                    <p className="text-slate-400">Relations</p>
+                    <p className="font-semibold text-slate-700">{graphSummary.totalRelations}</p>
+                  </div>
+                  <div className="rounded-md bg-slate-50 px-2 py-1.5">
+                    <p className="text-slate-400">Related files</p>
+                    <p className="font-semibold text-slate-700">{relatedPaths.length}</p>
+                  </div>
+                </div>
+                {relatedPaths.length > 0 && (
+                  <div className="mt-2 space-y-1 max-h-24 overflow-y-auto">
+                    {relatedPaths.slice(0, 8).map((file) => (
+                      <p key={file} className="text-xs font-mono text-slate-700 truncate flex items-center gap-1.5">
+                        <GitBranch className="w-3 h-3 text-slate-400" />
+                        {file}
+                      </p>
+                    ))}
+                  </div>
                 )}
               </div>
               <div>
