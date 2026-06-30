@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Check, ClipboardCopy, DownloadCloud, Loader2, PackageSearch, TriangleAlert } from "lucide-react";
+import { ArrowLeft, Check, ClipboardCopy, DownloadCloud, FileDiff, Loader2, PackageSearch, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { base44 } from "@/api/base44Client";
@@ -11,6 +11,7 @@ import {
   formatMissingContextImportPrompt,
   formatMissingContextQueue,
   readBestMissingContextQueue,
+  writeMissingContextQueue,
 } from "@/lib/missingContextQueueUtils";
 
 const EXTENSIONS = [".js", ".jsx", ".ts", ".tsx"];
@@ -45,6 +46,16 @@ function resolveQueuedTarget(item, storedPathSet) {
     candidates,
     matchedPath,
     status: matchedPath ? "indexed" : "missing",
+  };
+}
+
+function queueItemForStorage(item) {
+  return {
+    target: item.target,
+    source_file: item.source_file,
+    import_path: item.import_path,
+    relation_type: item.relation_type,
+    added_at: item.added_at,
   };
 }
 
@@ -166,6 +177,7 @@ export default function MissingContextImportQueue() {
   const resolvedQueue = useMemo(() => queue.map((item) => resolveQueuedTarget(item, storedPathSet)), [queue, storedPathSet]);
   const indexedCount = resolvedQueue.filter((item) => item.status === "indexed").length;
   const missingCount = Math.max(0, resolvedQueue.length - indexedCount);
+  const hasResolvedTargets = indexedCount > 0;
   const canResolveFromPublicGitHub = Boolean(project?.repository_url) && missingCount > 0;
 
   const importPrompt = formatMissingContextImportPrompt({
@@ -227,6 +239,22 @@ export default function MissingContextImportQueue() {
     } finally {
       setResolving(false);
     }
+  };
+
+  const handleClearResolved = () => {
+    const remaining = resolvedQueue
+      .filter((item) => item.status !== "indexed")
+      .map(queueItemForStorage);
+    const next = writeMissingContextQueue(id, remaining);
+    setQueue(next);
+    setCopiedQueue(false);
+    setCopiedPrompt(false);
+    setResolveError("");
+    setResolveMessage(
+      remaining.length
+        ? `Cleared resolved targets. ${remaining.length} target${remaining.length === 1 ? "" : "s"} still queued.`
+        : "All resolved targets cleared from the queue."
+    );
   };
 
   const handleClear = () => {
@@ -308,6 +336,14 @@ export default function MissingContextImportQueue() {
                   {resolving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <DownloadCloud className="w-3.5 h-3.5" />}
                   {resolving ? "Resolving…" : "Resolve from GitHub"}
                 </Button>
+                {hasResolvedTargets && (
+                  <Link to={`/project/${id}/impact`}>
+                    <Button type="button" variant="outline" size="sm" className="cursor-pointer gap-1.5">
+                      <FileDiff className="w-3.5 h-3.5" />
+                      Run Impact again
+                    </Button>
+                  </Link>
+                )}
                 <Button type="button" variant="outline" size="sm" onClick={handleCopyPrompt} className="cursor-pointer gap-1.5">
                   {copiedPrompt ? <Check className="w-3.5 h-3.5" /> : <ClipboardCopy className="w-3.5 h-3.5" />}
                   {copiedPrompt ? "Prompt copied" : "Copy import prompt"}
@@ -315,6 +351,9 @@ export default function MissingContextImportQueue() {
                 <Button type="button" variant="outline" size="sm" onClick={handleCopyQueue} className="cursor-pointer gap-1.5">
                   {copiedQueue ? <Check className="w-3.5 h-3.5" /> : <ClipboardCopy className="w-3.5 h-3.5" />}
                   {copiedQueue ? "Copied" : "Copy queue"}
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={handleClearResolved} disabled={!hasResolvedTargets} className="cursor-pointer">
+                  Clear resolved
                 </Button>
                 <Button type="button" variant="outline" size="sm" onClick={handleClear} className="cursor-pointer">
                   Clear queue
