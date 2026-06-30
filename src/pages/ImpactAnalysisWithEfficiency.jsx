@@ -55,8 +55,8 @@ export default function ImpactAnalysisWithEfficiency() {
         <ContextEfficiencyCard
           allFiles={files}
           selectedFiles={selectedFiles}
-          title="Impact Analysis Context Efficiency"
-          description="Estimated token savings when impact analysis sends risk-relevant files instead of every stored file."
+          title="Baseline Context Efficiency Estimate"
+          description="A rough pre-input estimate. The live Context Pack Inspector below shows the actual files selected for the current diff or file list."
         />
       )}
       <ImpactAnalysis />
