@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, AlertTriangle, FileDiff, GitBranch, Loader2, Sparkles } from "lucide-react";
+import { ArrowLeft, AlertTriangle, DownloadCloud, FileDiff, GitBranch, Loader2, Sparkles } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { base44 } from "@/api/base44Client";
 import { useToast } from "@/components/ui/use-toast";
 import { buildCodeRelations, relatedPathsForChangedFiles, summarizeCodeGraph } from "@/lib/codeGraphUtils";
+import { fetchPublicGithubPrDiffClient, formatPrDiffForImpactAnalysis } from "@/lib/githubPrUtils";
 import {
   buildImpactAnalysisPrompt,
   extractChangedFiles,
@@ -33,16 +35,38 @@ const exampleDiff = `diff --git a/src/api/payments.js b/src/api/payments.js
 
 src/pages/Checkout.jsx`;
 
+async function fetchPublicGithubPrDiff(prUrl) {
+  try {
+    const res = await base44.functions.invoke("fetchPublicGithubPrDiff", {
+      pr_url: prUrl,
+    });
+    const data = res?.data || res;
+    if (data?.error) throw new Error(data.error);
+    if (data?.diff) return data;
+    throw new Error("Backend PR fetch returned an unexpected response.");
+  } catch (backendError) {
+    const fallback = await fetchPublicGithubPrDiffClient(prUrl);
+    return {
+      ...fallback,
+      source: "client_fallback_after_backend_error",
+      backendError: backendError?.message || String(backendError),
+    };
+  }
+}
+
 export default function ImpactAnalysis() {
   const { id } = useParams();
   const { toast } = useToast();
   const [project, setProject] = useState(null);
   const [files, setFiles] = useState([]);
   const [analyses, setAnalyses] = useState([]);
+  const [prUrl, setPrUrl] = useState("");
+  const [prMeta, setPrMeta] = useState(null);
   const [changeInput, setChangeInput] = useState("");
   const [result, setResult] = useState("");
   const [riskLevel, setRiskLevel] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [fetchingPr, setFetchingPr] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
 
   useEffect(() => {
@@ -66,6 +90,34 @@ export default function ImpactAnalysis() {
   const graphSummary = useMemo(() => summarizeCodeGraph(codeRelations), [codeRelations]);
   const relatedPaths = useMemo(() => relatedPathsForChangedFiles(codeRelations, changedFiles), [codeRelations, changedFiles]);
 
+  const handleFetchPr = async () => {
+    if (!prUrl.trim()) {
+      toast({ title: "Paste a public GitHub PR URL first", variant: "destructive" });
+      return;
+    }
+
+    setFetchingPr(true);
+    try {
+      const fetched = await fetchPublicGithubPrDiff(prUrl.trim());
+      setPrMeta(fetched);
+      setChangeInput(formatPrDiffForImpactAnalysis(fetched));
+      setResult("");
+      setRiskLevel(null);
+      toast({
+        title: "PR diff loaded",
+        description: `${fetched.repositoryFullName}#${fetched.prNumber} · ${fetched.changedFilesCount || fetched.changedFiles?.length || 0} files`,
+      });
+    } catch (error) {
+      toast({
+        title: "Failed to fetch PR diff",
+        description: error?.message || "The PR must be public and accessible.",
+        variant: "destructive",
+      });
+    } finally {
+      setFetchingPr(false);
+    }
+  };
+
   const handleAnalyze = async () => {
     if (!changeInput.trim()) {
       toast({ title: "Paste a diff or changed file list first", variant: "destructive" });
@@ -88,7 +140,7 @@ export default function ImpactAnalysis() {
       try {
         const saved = await base44.entities.CodebaseAnalysis.create({
           project_id: id,
-          type: "manual_diff_impact",
+          type: prMeta ? "public_github_pr_impact" : "manual_diff_impact",
           input: changeInput,
           result: finalAnswer,
           risk_level: parsedRisk,
@@ -97,6 +149,23 @@ export default function ImpactAnalysis() {
           related_files: payload.relatedPaths,
           relevant_relations: payload.relevantRelations.map((relation) => `${relation.from_file}->${relation.to_file || relation.import_path}`),
           relevant_files: payload.relevantFiles.map((file) => file.path),
+          pr_metadata: prMeta
+            ? {
+                repositoryFullName: prMeta.repositoryFullName,
+                prNumber: prMeta.prNumber,
+                title: prMeta.title,
+                state: prMeta.state,
+                htmlUrl: prMeta.htmlUrl,
+                baseRef: prMeta.baseRef,
+                headRef: prMeta.headRef,
+                changedFilesCount: prMeta.changedFilesCount,
+                additions: prMeta.additions,
+                deletions: prMeta.deletions,
+                truncated: prMeta.truncated,
+                source: prMeta.source,
+                backendError: prMeta.backendError || null,
+              }
+            : null,
           created_date: new Date().toISOString(),
         });
         setAnalyses((prev) => [saved, ...prev].slice(0, 20));
@@ -148,7 +217,7 @@ export default function ImpactAnalysis() {
               Manual PR / Diff Impact Analysis
             </h1>
             <p className="text-sm text-slate-500 mt-1">
-              Paste a diff or changed file list. Codebase Brain compares it with the stored project context and Code Graph Lite relations.
+              Paste a public GitHub PR URL, diff, or changed file list. Codebase Brain compares it with the stored project context and Code Graph Lite relations.
             </p>
           </div>
           <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200">
@@ -160,19 +229,53 @@ export default function ImpactAnalysis() {
       <div className="grid lg:grid-cols-[1fr_360px] gap-6">
         <div className="space-y-4">
           <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-3">
+            <div>
+              <h2 className="font-heading font-semibold text-sm text-slate-900">Public GitHub PR</h2>
+              <p className="text-xs text-slate-400 mt-1">Optional: load a public PR diff automatically before analysis.</p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Input
+                value={prUrl}
+                onChange={(event) => setPrUrl(event.target.value)}
+                placeholder="https://github.com/owner/repo/pull/123"
+                disabled={fetchingPr}
+              />
+              <Button type="button" variant="outline" onClick={handleFetchPr} disabled={fetchingPr || !prUrl.trim()} className="gap-2 cursor-pointer whitespace-nowrap">
+                {fetchingPr ? <Loader2 className="w-4 h-4 animate-spin" /> : <DownloadCloud className="w-4 h-4" />}
+                {fetchingPr ? "Fetching…" : "Fetch PR diff"}
+              </Button>
+            </div>
+            {prMeta && (
+              <div className="rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-sm text-blue-800">
+                <p className="font-medium truncate">{prMeta.repositoryFullName}#{prMeta.prNumber}: {prMeta.title}</p>
+                <p className="text-xs mt-1">
+                  {prMeta.changedFilesCount || prMeta.changedFiles?.length || 0} files · +{prMeta.additions || 0} -{prMeta.deletions || 0} · source: {prMeta.source || "unknown"}
+                  {prMeta.truncated ? " · diff truncated" : ""}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-3">
             <div className="flex items-center justify-between gap-3">
               <h2 className="font-heading font-semibold text-sm text-slate-900">Change input</h2>
               <button
                 type="button"
                 className="text-xs text-slate-500 hover:text-slate-800 underline cursor-pointer"
-                onClick={() => setChangeInput(exampleDiff)}
+                onClick={() => {
+                  setChangeInput(exampleDiff);
+                  setPrMeta(null);
+                }}
               >
                 Use example
               </button>
             </div>
             <Textarea
               value={changeInput}
-              onChange={(event) => setChangeInput(event.target.value)}
+              onChange={(event) => {
+                setChangeInput(event.target.value);
+                setPrMeta(null);
+              }}
               rows={16}
               className="font-mono text-sm"
               placeholder="Paste a git diff, PR patch, or changed file list here…"
@@ -266,7 +369,7 @@ export default function ImpactAnalysis() {
           <div className="bg-amber-50 rounded-xl border border-amber-200 p-4 text-sm text-amber-800 flex gap-2">
             <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
             <p>
-              This does not run tests or inspect the real GitHub PR yet. It only analyzes the submitted diff against the stored imported sample.
+              This does not run tests or comment on GitHub yet. It only analyzes a public PR diff or submitted diff against the stored imported sample.
             </p>
           </div>
 
