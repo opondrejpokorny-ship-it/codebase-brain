@@ -15,6 +15,7 @@ import ResetPassword from '@/pages/ResetPassword';
 import Home from '@/pages/Home';
 import AddRepository from '@/pages/AddRepository';
 import ProjectDetail from '@/pages/ProjectDetail';
+import ImpactAnalysis from '@/pages/ImpactAnalysis';
 import AppLayout from '@/components/layout/AppLayout';
 
 const AuthenticatedApp = () => {
@@ -48,6 +49,7 @@ const AuthenticatedApp = () => {
           <Route path="/" element={<Home />} />
           <Route path="/add" element={<AddRepository />} />
           <Route path="/project/:id" element={<ProjectDetail />} />
+          <Route path="/project/:id/impact" element={<ImpactAnalysis />} />
         </Route>
       </Route>
       <Route path="*" element={<PageNotFound />} />
