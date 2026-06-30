@@ -19,6 +19,10 @@ function boolText(value) {
   return value ? "true" : "false";
 }
 
+function entityReady(data) {
+  return Boolean(data?.present && data?.methods?.filter && data?.methods?.create && data?.methods?.update);
+}
+
 function EnvFlagRow({ name, data }) {
   return (
     <div className="flex items-center justify-between gap-3 border-b border-slate-100 py-2 last:border-0">
@@ -47,7 +51,7 @@ function EntityRow({ name, data }) {
       <div className="flex items-start justify-between gap-3 mb-2">
         <div>
           <p className="font-mono text-sm text-slate-800">{name}</p>
-          <p className="text-xs text-slate-400">filter/create/update are required for webhook delivery logging.</p>
+          <p className="text-xs text-slate-400">filter/create/update are required for metadata logging.</p>
         </div>
         {statusBadge(Boolean(data?.present && required), "Ready", data?.present ? "Incomplete" : "Missing")}
       </div>
@@ -57,6 +61,24 @@ function EntityRow({ name, data }) {
             {method}: {boolText(Boolean(ok))}
           </span>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function ReadinessCard({ title, ready, readyText, missingText }) {
+  return (
+    <div className={`rounded-xl border p-4 ${ready ? "bg-emerald-50 border-emerald-200" : "bg-amber-50 border-amber-200"}`}>
+      <div className="flex items-start gap-3">
+        {ready ? <CheckCircle2 className="w-5 h-5 text-emerald-700 mt-0.5" /> : <ShieldAlert className="w-5 h-5 text-amber-700 mt-0.5" />}
+        <div>
+          <h2 className={`font-heading font-semibold ${ready ? "text-emerald-900" : "text-amber-900"}`}>
+            {title}: {ready ? "ready" : "not ready yet"}
+          </h2>
+          <p className={`text-sm mt-1 ${ready ? "text-emerald-800" : "text-amber-800"}`}>
+            {ready ? readyText : missingText}
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -86,13 +108,9 @@ export default function RuntimeDiagnostics() {
   };
 
   const entities = result?.base44?.entities?.expected_entities || {};
-  const webhookDelivery = entities.GitHubWebhookDelivery;
-  const webhookDeliveryReady = Boolean(
-    webhookDelivery?.present &&
-    webhookDelivery?.methods?.filter &&
-    webhookDelivery?.methods?.create &&
-    webhookDelivery?.methods?.update,
-  );
+  const webhookDeliveryReady = entityReady(entities.GitHubWebhookDelivery);
+  const installationReady = entityReady(entities.GitHubInstallation);
+  const repositoryLinkReady = entityReady(entities.GitHubRepositoryLink);
 
   return (
     <div className="space-y-6">
@@ -121,24 +139,29 @@ export default function RuntimeDiagnostics() {
 
       {!result ? (
         <div className="bg-slate-50 rounded-xl border border-slate-200 p-6 text-sm text-slate-500">
-          Run diagnostics after deploying Base44 functions. The key check is whether <code className="bg-white px-1 rounded">GitHubWebhookDelivery</code> has <code className="bg-white px-1 rounded">filter</code>, <code className="bg-white px-1 rounded">create</code>, and <code className="bg-white px-1 rounded">update</code>.
+          Run diagnostics after deploying Base44 functions. The key check is whether <code className="bg-white px-1 rounded">GitHubWebhookDelivery</code>, <code className="bg-white px-1 rounded">GitHubInstallation</code>, and <code className="bg-white px-1 rounded">GitHubRepositoryLink</code> have <code className="bg-white px-1 rounded">filter</code>, <code className="bg-white px-1 rounded">create</code>, and <code className="bg-white px-1 rounded">update</code>.
         </div>
       ) : (
         <div className="space-y-4">
-          <div className={`rounded-xl border p-5 ${webhookDeliveryReady ? "bg-emerald-50 border-emerald-200" : "bg-amber-50 border-amber-200"}`}>
-            <div className="flex items-start gap-3">
-              {webhookDeliveryReady ? <CheckCircle2 className="w-5 h-5 text-emerald-700 mt-0.5" /> : <ShieldAlert className="w-5 h-5 text-amber-700 mt-0.5" />}
-              <div>
-                <h2 className={`font-heading font-semibold ${webhookDeliveryReady ? "text-emerald-900" : "text-amber-900"}`}>
-                  Webhook delivery persistence: {webhookDeliveryReady ? "ready" : "not ready yet"}
-                </h2>
-                <p className={`text-sm mt-1 ${webhookDeliveryReady ? "text-emerald-800" : "text-amber-800"}`}>
-                  {webhookDeliveryReady
-                    ? "The runtime appears to expose the required GitHubWebhookDelivery entity methods."
-                    : "The runtime does not expose all required GitHubWebhookDelivery methods yet, or the entity is missing."}
-                </p>
-              </div>
-            </div>
+          <div className="grid lg:grid-cols-3 gap-4">
+            <ReadinessCard
+              title="Webhook delivery persistence"
+              ready={webhookDeliveryReady}
+              readyText="The runtime appears to expose the required GitHubWebhookDelivery entity methods."
+              missingText="The runtime does not expose all required GitHubWebhookDelivery methods yet, or the entity is missing."
+            />
+            <ReadinessCard
+              title="Installation metadata"
+              ready={installationReady}
+              readyText="The runtime appears to expose the required GitHubInstallation entity methods."
+              missingText="GitHubInstallation is missing or incomplete, so installation metadata logging should remain disabled."
+            />
+            <ReadinessCard
+              title="Repository links"
+              ready={repositoryLinkReady}
+              readyText="The runtime appears to expose the required GitHubRepositoryLink entity methods."
+              missingText="GitHubRepositoryLink is missing or incomplete, so repository link logging should remain disabled."
+            />
           </div>
 
           <div className="grid lg:grid-cols-2 gap-4">
