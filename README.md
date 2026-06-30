@@ -21,7 +21,8 @@ A user can:
 11. see whether the PR repository matches the imported project repository,
 12. follow documented GitHub App permissions, webhook, and safety plans before private repo access is implemented,
 13. deploy a disabled GitHub webhook receiver skeleton with no side effects,
-14. optionally log webhook deliveries and dedupe them if the Base44 entity API is available in the function runtime.
+14. optionally log webhook deliveries and dedupe them if the Base44 entity API is available in the function runtime,
+15. run a safe Base44 runtime diagnostics endpoint that reports capability presence without exposing secrets.
 
 ## What is included now
 
@@ -43,6 +44,7 @@ A user can:
 - GitHub webhook contract
 - Disabled GitHub webhook receiver skeleton
 - Optional webhook delivery logging adapter
+- Base44 runtime diagnostics function
 - AI project summary through Base44 `Core.InvokeLLM`
 - AI chat over stored context with a safe phase-1 fallback
 - Documentation for next phases
@@ -152,6 +154,16 @@ globalThis.base44.entities.GitHubWebhookDelivery
 
 If available, it persists delivery snapshots and ignores duplicates by `delivery_id`. If unavailable, it returns `persisted:false` instead of crashing.
 
+## Base44 runtime diagnostics
+
+A safe diagnostics endpoint exists:
+
+```txt
+base44/functions/base44RuntimeDiagnostics/entry.ts
+```
+
+It reports only capability presence, such as whether `globalThis.base44.entities.GitHubWebhookDelivery` exists and which methods are available. It never returns secret values, only presence/length/enabled booleans.
+
 ## Public GitHub PR fetch limits
 
 - public PRs only,
@@ -163,7 +175,7 @@ If available, it persists delivery snapshots and ignores duplicates by `delivery
 ## What is intentionally not included yet
 
 - private repository import
-- confirmed Base44 backend entity binding
+- confirmed Base44 backend entity binding in deployed runtime
 - installation metadata persistence
 - automatic PR analysis from webhooks
 - PR comments
@@ -248,16 +260,18 @@ VITE_BASE44_APP_BASE_URL=https://your-app.base44.app
 - `docs/phase-8-github-app-plan.md`
 - `docs/phase-9-webhook-skeleton.md`
 - `docs/phase-9b-webhook-delivery-logging.md`
+- `docs/phase-10-base44-runtime-diagnostics.md`
 - `docs/github-app-review-safety-contract.md`
 - `docs/github-webhook-contract.md`
 - `docs/architecture.md`
 
 ## Next phases
 
-1. Confirm and harden Base44 backend entity access for `GitHubWebhookDelivery`.
-2. Store GitHub installation metadata.
-3. GitHub App + private repo import + automated internal PR analysis.
-4. MCP server for Codex/Cursor/Claude Code.
+1. Run diagnostics in deployed Base44 runtime and confirm the entity API.
+2. If needed, replace the webhook persistence adapter with the official server-side Base44 entity API.
+3. Store GitHub installation metadata.
+4. GitHub App + private repo import + automated internal PR analysis.
+5. MCP server for Codex/Cursor/Claude Code.
 
 ## Base44 docs
 
