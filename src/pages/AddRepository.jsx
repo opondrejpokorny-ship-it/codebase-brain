@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Loader2, GitBranch, FileCode, DownloadCloud } from "lucide-react";
+import { ArrowLeft, Loader2, GitBranch, FileCode, DownloadCloud, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -33,6 +33,38 @@ function dedupeFiles(files) {
   return [...byPath.values()];
 }
 
+function isLikelyPrivateOrInaccessibleError(error) {
+  const message = String(error?.message || error || "").toLowerCase();
+  return (
+    message.includes("404") ||
+    message.includes("403") ||
+    message.includes("not found") ||
+    message.includes("bad credentials") ||
+    message.includes("requires authentication") ||
+    message.includes("rate limit")
+  );
+}
+
+function buildPrivateRepoImportMeta(repositoryUrl, error) {
+  return {
+    source: "private_or_inaccessible_repository_placeholder",
+    repositoryFullName: extractProjectName(repositoryUrl) || null,
+    defaultBranch: null,
+    importedFiles: [],
+    attemptedFiles: 0,
+    skippedFiles: 0,
+    truncatedTree: false,
+    errors: [
+      {
+        path: repositoryUrl,
+        message: error?.message || "Repository is private, missing, rate-limited, or not accessible with current public import permissions.",
+      },
+    ],
+    backendError: error?.message || String(error),
+    accessMode: "url_only_until_github_app_or_token",
+  };
+}
+
 function buildImportMetadata(importMeta, finalFiles) {
   if (!importMeta) return null;
   return {
@@ -46,6 +78,7 @@ function buildImportMetadata(importMeta, finalFiles) {
     truncatedTree: Boolean(importMeta.truncatedTree),
     errors: Array.isArray(importMeta.errors) ? importMeta.errors.slice(0, 20) : [],
     backendError: importMeta.backendError || null,
+    accessMode: importMeta.accessMode || null,
     limits: importMeta.limits || PUBLIC_GITHUB_IMPORT_LIMITS,
     importedAt: new Date().toISOString(),
   };
@@ -61,14 +94,21 @@ async function importPublicGithubRepository(repositoryUrl) {
     if (Array.isArray(data?.importedFiles)) return data;
     throw new Error("Backend import returned an unexpected response.");
   } catch (backendError) {
-    // Backend function may not be deployed yet in early Base44 previews.
-    // Keep a browser fallback so the MVP remains usable immediately.
-    const fallback = await importPublicGithubRepositoryClient(repositoryUrl);
-    return {
-      ...fallback,
-      source: "client_fallback_after_backend_error",
-      backendError: backendError?.message || String(backendError),
-    };
+    try {
+      // Backend function may not be deployed yet in early Base44 previews.
+      // Keep a browser fallback so the MVP remains usable immediately.
+      const fallback = await importPublicGithubRepositoryClient(repositoryUrl);
+      return {
+        ...fallback,
+        source: "client_fallback_after_backend_error",
+        backendError: backendError?.message || String(backendError),
+      };
+    } catch (clientError) {
+      if (isLikelyPrivateOrInaccessibleError(clientError) || isLikelyPrivateOrInaccessibleError(backendError)) {
+        return buildPrivateRepoImportMeta(repositoryUrl, clientError || backendError);
+      }
+      throw clientError;
+    }
   }
 }
 
@@ -107,7 +147,14 @@ export default function AddRepository() {
       if (trimmedRepoUrl && importPublicRepo) {
         setImportStatus("Importing public GitHub files…");
         importMeta = await importPublicGithubRepository(trimmedRepoUrl);
-        importedFiles = importMeta.importedFiles;
+        importedFiles = Array.isArray(importMeta.importedFiles) ? importMeta.importedFiles : [];
+
+        if (importMeta.accessMode === "url_only_until_github_app_or_token") {
+          toast({
+            title: "Repository saved without file import",
+            description: "This repository is private or inaccessible through public GitHub import. The project was created as URL-only until GitHub App/private access is enabled.",
+          });
+        }
       }
 
       const files = dedupeFiles([...importedFiles, ...pastedFiles]);
@@ -119,16 +166,18 @@ export default function AddRepository() {
         detectedStack,
       });
 
-      const importDescription = importMeta
-        ? `Imported ${importMeta.importedFiles.length}/${importMeta.attemptedFiles} public GitHub files from ${importMeta.repositoryFullName}. Source: ${importMeta.source || "public import"}.`
-        : trimmedRepoUrl
-          ? `Repository: ${trimmedRepoUrl}`
-          : "Pasted code project";
+      const importDescription = importMeta?.accessMode === "url_only_until_github_app_or_token"
+        ? `Repository saved as URL-only. Public import could not access files, likely because the repository is private, missing, rate-limited, or requires authentication.`
+        : importMeta
+          ? `Imported ${importMeta.importedFiles.length}/${importMeta.attemptedFiles} public GitHub files from ${importMeta.repositoryFullName}. Source: ${importMeta.source || "public import"}.`
+          : trimmedRepoUrl
+            ? `Repository: ${trimmedRepoUrl}`
+            : "Pasted code project";
 
       const project = await base44.entities.CodebaseProject.create({
         name,
         repository_url: trimmedRepoUrl || null,
-        status: "draft",
+        status: files.length > 0 ? "draft" : "url_only",
         detected_stack: detectedStack,
         summary: fallbackSummary,
         description: importDescription,
@@ -147,19 +196,26 @@ export default function AddRepository() {
       }
 
       try {
-        setImportStatus("Generating lightweight summary…");
-        const summary = await base44.integrations.Core.InvokeLLM({
-          prompt: buildSummaryPrompt({ name, repoUrl: trimmedRepoUrl, files, detectedStack, fallbackSummary }),
-        });
+        if (files.length > 0) {
+          setImportStatus("Generating lightweight summary…");
+          const summary = await base44.integrations.Core.InvokeLLM({
+            prompt: buildSummaryPrompt({ name, repoUrl: trimmedRepoUrl, files, detectedStack, fallbackSummary }),
+          });
 
-        await base44.entities.CodebaseProject.update(project.id, {
-          summary: summary || fallbackSummary,
-          status: "indexed",
-        });
+          await base44.entities.CodebaseProject.update(project.id, {
+            summary: summary || fallbackSummary,
+            status: "indexed",
+          });
+        } else {
+          await base44.entities.CodebaseProject.update(project.id, {
+            summary: fallbackSummary,
+            status: "url_only",
+          });
+        }
       } catch {
         await base44.entities.CodebaseProject.update(project.id, {
           summary: fallbackSummary,
-          status: "indexed",
+          status: files.length > 0 ? "indexed" : "url_only",
         });
       }
 
@@ -222,9 +278,13 @@ export default function AddRepository() {
                 disabled={saving}
               />
               <span>
-                Import a small public GitHub sample now. Limit: {PUBLIC_GITHUB_IMPORT_LIMITS.maxFiles} text files, max {Math.round(PUBLIC_GITHUB_IMPORT_LIMITS.maxFileBytes / 1000)} KB per file. Backend function is tried first; browser fallback keeps the MVP usable.
+                Import a small public GitHub sample now. Limit: {PUBLIC_GITHUB_IMPORT_LIMITS.maxFiles} text files, max {Math.round(PUBLIC_GITHUB_IMPORT_LIMITS.maxFileBytes / 1000)} KB per file. Private repositories are saved URL-only until GitHub App/private access is enabled.
               </span>
             </label>
+          </div>
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 flex gap-2">
+            <Lock className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+            <span>Private repo support is planned through GitHub App integration. For now, private repositories can be saved as a project, but files cannot be imported unless you paste code manually.</span>
           </div>
         </div>
 
