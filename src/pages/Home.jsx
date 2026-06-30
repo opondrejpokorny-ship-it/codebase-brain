@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Brain, Loader2, ServerCog } from "lucide-react";
+import { Plus, Brain, Loader2, ServerCog, GitBranch } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { base44 } from "@/api/base44Client";
 import ProjectCard from "@/components/projects/ProjectCard";
@@ -27,6 +27,12 @@ export default function Home() {
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2">
+          <Link to="/github/repositories">
+            <Button variant="outline" className="cursor-pointer gap-2 w-full sm:w-auto">
+              <GitBranch className="w-4 h-4" />
+              GitHub Repos
+            </Button>
+          </Link>
           <Link to="/diagnostics">
             <Button variant="outline" className="cursor-pointer gap-2 w-full sm:w-auto">
               <ServerCog className="w-4 h-4" />
@@ -59,6 +65,12 @@ export default function Home() {
               <h3 className="font-heading font-semibold text-slate-900 mb-1">No projects yet</h3>
               <p className="text-sm text-slate-500 mb-5">Add a GitHub repository or paste code to get started.</p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
+                <Link to="/github/repositories">
+                  <Button variant="outline" className="cursor-pointer gap-2 w-full sm:w-auto">
+                    <GitBranch className="w-4 h-4" />
+                    GitHub Repos
+                  </Button>
+                </Link>
                 <Link to="/diagnostics">
                   <Button variant="outline" className="cursor-pointer gap-2 w-full sm:w-auto">
                     <ServerCog className="w-4 h-4" />
