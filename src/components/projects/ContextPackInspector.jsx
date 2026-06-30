@@ -2,43 +2,14 @@ import { useEffect, useState } from "react";
 import { Check, ClipboardCopy, FileText, GitBranch, Info, PackageSearch, TriangleAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  addMissingContextQueueItems,
+  clearMissingContextQueue,
+  formatMissingContextQueue,
+  missingContextQueueItem,
+  readMissingContextQueue,
+} from "@/lib/missingContextQueueUtils";
 import { formatEstimatedTokens } from "@/lib/tokenBudgetUtils";
-
-const MISSING_CONTEXT_QUEUE_KEY = "codebase_brain_missing_context_queue_v1";
-
-function storageAvailable() {
-  try {
-    return typeof window !== "undefined" && Boolean(window.localStorage);
-  } catch {
-    return false;
-  }
-}
-
-function safeJsonParse(value, fallback) {
-  try {
-    return JSON.parse(value);
-  } catch {
-    return fallback;
-  }
-}
-
-function readMissingContextQueue(projectId) {
-  if (!projectId || !storageAvailable()) return [];
-  const all = safeJsonParse(window.localStorage.getItem(MISSING_CONTEXT_QUEUE_KEY) || "{}", {});
-  return Array.isArray(all[projectId]) ? all[projectId] : [];
-}
-
-function writeMissingContextQueue(projectId, queue = []) {
-  if (!projectId || !storageAvailable()) return [];
-  const all = safeJsonParse(window.localStorage.getItem(MISSING_CONTEXT_QUEUE_KEY) || "{}", {});
-  all[projectId] = queue;
-  window.localStorage.setItem(MISSING_CONTEXT_QUEUE_KEY, JSON.stringify(all));
-  return queue;
-}
-
-function clearMissingContextQueue(projectId) {
-  return writeMissingContextQueue(projectId, []);
-}
 
 function relationLabel(relation) {
   if (!relation) return "";
@@ -81,36 +52,17 @@ function missingContextLabel(relation) {
 
 function queueItemFromRelation(relation) {
   const target = bestMissingPathGuess(relation);
-  if (!target) return null;
-  return {
+  return missingContextQueueItem({
     target,
-    source_file: relation?.from_file || "",
-    import_path: relation?.import_path || "",
-    relation_type: relation?.relation_type || "missing_context",
-    added_at: new Date().toISOString(),
-  };
+    sourceFile: relation?.from_file || "",
+    importPath: relation?.import_path || "",
+    relationType: relation?.relation_type || "missing_context",
+  });
 }
 
 function addMissingTargetsToQueue(projectId, relations = []) {
-  if (!projectId) return [];
-  const current = readMissingContextQueue(projectId);
-  const byTarget = new Map(current.map((item) => [item.target, item]));
-
-  for (const relation of relations) {
-    const item = queueItemFromRelation(relation);
-    if (!item) continue;
-    byTarget.set(item.target, {
-      ...(byTarget.get(item.target) || {}),
-      ...item,
-    });
-  }
-
-  const next = [...byTarget.values()].sort((a, b) => String(a.target).localeCompare(String(b.target)));
-  return writeMissingContextQueue(projectId, next);
-}
-
-function queueText(queue = []) {
-  return queue.map((item) => item.target).filter(Boolean).join("\n");
+  const items = relations.map(queueItemFromRelation).filter(Boolean);
+  return addMissingContextQueueItems(projectId, items);
 }
 
 function uniqueRelations(relations = []) {
@@ -367,7 +319,7 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
 
   const handleCopyQueue = async () => {
     try {
-      await navigator.clipboard.writeText(queueText(queuedTargets));
+      await navigator.clipboard.writeText(formatMissingContextQueue(queuedTargets));
       setCopiedQueue(true);
       window.setTimeout(() => setCopiedQueue(false), 1600);
     } catch {
