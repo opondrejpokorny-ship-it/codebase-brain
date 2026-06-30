@@ -14,12 +14,43 @@ function isChangedFileRelation(relation, changedSet) {
   return changedSet.has(relation.from_file) || (relation.to_file && changedSet.has(relation.to_file));
 }
 
+function isMissingContextRelation(relation) {
+  return relation?.relation_type === "alias_unresolved" || relation?.relation_type === "unresolved_relative";
+}
+
+function suggestedMissingPath(importPath = "") {
+  const value = String(importPath || "");
+  if (value.startsWith("@/") || value.startsWith("~/")) {
+    return `src/${value.slice(2)}`;
+  }
+  if (value.startsWith("src/")) return value;
+  return value;
+}
+
+function missingContextLabel(relation) {
+  const target = suggestedMissingPath(relation?.import_path || "");
+  const suffix = target
+    ? `try ${target}.{js,jsx,ts,tsx} or ${target}/index.{js,jsx,ts,tsx}`
+    : "target path could not be inferred";
+  return `${relation.from_file} imports ${relation.import_path} → missing from stored context; ${suffix}`;
+}
+
+function uniqueRelations(relations = []) {
+  const seen = new Set();
+  return relations.filter((relation) => {
+    const key = `${relation.from_file}|${relation.relation_type}|${relation.import_path}|${relation.to_file || ""}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function formatReasons(reasons = []) {
   if (!reasons.length) return "  - No explicit selection reason captured.";
   return reasons.map((reason) => `  - ${reason}`).join("\n");
 }
 
-function buildCopyText({ contextPack, selectedFiles, directChangedRelations, otherContextRelations, efficiency }) {
+function buildCopyText({ contextPack, selectedFiles, directChangedRelations, otherContextRelations, missingContextRelations, efficiency }) {
   return `# Codebase Brain Context Pack Summary
 
 Selected files: ${selectedFiles.length}
@@ -32,6 +63,9 @@ ${(contextPack.warnings || []).length ? (contextPack.warnings || []).map((warnin
 
 ## Selected files and reasons
 ${selectedFiles.map((file) => `### ${file.path}\n${formatReasons(contextPack.reasons?.[file.path] || [])}`).join("\n\n")}
+
+## Missing context candidates
+${missingContextRelations.length ? missingContextRelations.map((relation) => `- ${missingContextLabel(relation)}`).join("\n") : "- None"}
 
 ## Graph relations connected to changed files
 ${directChangedRelations.length ? directChangedRelations.map((relation) => `- ${relationLabel(relation)}`).join("\n") : "- None"}
@@ -63,6 +97,26 @@ function RelationList({ title, relations = [], limit = 12 }) {
   );
 }
 
+function MissingContextList({ relations = [] }) {
+  if (!relations.length) return null;
+
+  return (
+    <div className="mt-4 rounded-lg bg-amber-50 border border-amber-100 p-3">
+      <p className="text-xs font-medium text-amber-800 flex items-center gap-1.5 mb-2">
+        <TriangleAlert className="w-3.5 h-3.5" />
+        Missing context candidates
+      </p>
+      <div className="space-y-1 max-h-36 overflow-y-auto">
+        {relations.map((relation, index) => (
+          <p key={`${relation.from_file}-${relation.import_path}-${index}`} className="text-xs text-amber-700 break-all">
+            • {missingContextLabel(relation)}
+          </p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function ContextPackInspector({ contextPack, changedFiles = [] }) {
   const [copied, setCopied] = useState(false);
   if (!contextPack) return null;
@@ -72,11 +126,13 @@ export default function ContextPackInspector({ contextPack, changedFiles = [] })
   const warnings = contextPack.warnings || [];
   const efficiency = contextPack.efficiency || {};
   const changedSet = new Set(changedFiles || []);
-  const directChangedRelations = selectedRelations.filter((relation) => isChangedFileRelation(relation, changedSet));
-  const otherContextRelations = selectedRelations.filter((relation) => !isChangedFileRelation(relation, changedSet));
+  const changedConnectedRelations = selectedRelations.filter((relation) => isChangedFileRelation(relation, changedSet));
+  const missingContextRelations = uniqueRelations(changedConnectedRelations.filter(isMissingContextRelation));
+  const directChangedRelations = changedConnectedRelations.filter((relation) => !isMissingContextRelation(relation));
+  const otherContextRelations = selectedRelations.filter((relation) => !isChangedFileRelation(relation, changedSet) && !isMissingContextRelation(relation));
 
   const handleCopy = async () => {
-    const text = buildCopyText({ contextPack, selectedFiles, directChangedRelations, otherContextRelations, efficiency });
+    const text = buildCopyText({ contextPack, selectedFiles, directChangedRelations, otherContextRelations, missingContextRelations, efficiency });
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
@@ -164,6 +220,7 @@ export default function ContextPackInspector({ contextPack, changedFiles = [] })
         })}
       </div>
 
+      <MissingContextList relations={missingContextRelations} />
       <RelationList title="Graph relations connected to changed files" relations={directChangedRelations} />
       <RelationList title="Other selected context relations" relations={otherContextRelations} limit={8} />
     </div>
