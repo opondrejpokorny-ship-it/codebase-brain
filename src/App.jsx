@@ -16,6 +16,7 @@ import Home from '@/pages/Home';
 import AddRepository from '@/pages/AddRepository';
 import ProjectDetail from '@/pages/ProjectDetail';
 import ImpactAnalysis from '@/pages/ImpactAnalysis';
+import RuntimeDiagnostics from '@/pages/RuntimeDiagnostics';
 import AppLayout from '@/components/layout/AppLayout';
 
 const AuthenticatedApp = () => {
@@ -48,6 +49,7 @@ const AuthenticatedApp = () => {
         <Route element={<AppLayout />}>
           <Route path="/" element={<Home />} />
           <Route path="/add" element={<AddRepository />} />
+          <Route path="/diagnostics" element={<RuntimeDiagnostics />} />
           <Route path="/project/:id" element={<ProjectDetail />} />
           <Route path="/project/:id/impact" element={<ImpactAnalysis />} />
         </Route>
