@@ -13,8 +13,8 @@ import { fetchPublicGithubPrDiffClient, formatPrDiffForImpactAnalysis } from "@/
 import { compareProjectAndPrRepository } from "@/lib/repositoryCompatibilityUtils";
 import {
   buildImpactAnalysisPrompt,
+  calibrateImpactAnalysisOutput,
   extractChangedFiles,
-  extractRiskLevelFromAnalysis,
   heuristicRiskSignals,
   initialRiskLevel,
 } from "@/lib/impactAnalysisUtils";
@@ -194,8 +194,15 @@ export default function ImpactAnalysis() {
       const riskMemoryText = formatRiskMemoryForPrompt(analyses, preChangedFiles, preRelatedPaths, preSignals);
       const payload = buildImpactAnalysisPrompt({ project, files, changeInput, relations: codeRelations, riskMemoryText });
       const answer = await base44.integrations.Core.InvokeLLM({ prompt: payload.prompt });
-      const finalAnswer = answer || "No analysis was generated.";
-      const parsedRisk = extractRiskLevelFromAnalysis(finalAnswer, payload.heuristicRisk);
+      const rawAnswer = answer || "No analysis was generated.";
+      const calibrated = calibrateImpactAnalysisOutput({
+        text: rawAnswer,
+        heuristicRisk: payload.heuristicRisk,
+        signals: payload.signals,
+        changeInput,
+      });
+      const finalAnswer = calibrated.text;
+      const parsedRisk = calibrated.riskLevel;
 
       setResult(finalAnswer);
       setRiskLevel(parsedRisk);
