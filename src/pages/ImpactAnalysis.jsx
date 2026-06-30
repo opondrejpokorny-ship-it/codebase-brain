@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, AlertTriangle, DownloadCloud, FileDiff, GitBranch, Loader2, Sparkles } from "lucide-react";
+import { ArrowLeft, AlertTriangle, CheckCircle2, DownloadCloud, FileDiff, GitBranch, Loader2, Sparkles } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { base44 } from "@/api/base44Client";
 import { useToast } from "@/components/ui/use-toast";
 import { buildCodeRelations, relatedPathsForChangedFiles, summarizeCodeGraph } from "@/lib/codeGraphUtils";
 import { fetchPublicGithubPrDiffClient, formatPrDiffForImpactAnalysis } from "@/lib/githubPrUtils";
+import { compareProjectAndPrRepository } from "@/lib/repositoryCompatibilityUtils";
 import {
   buildImpactAnalysisPrompt,
   extractChangedFiles,
@@ -22,6 +23,12 @@ const riskStyles = {
   low: "bg-emerald-50 text-emerald-700 border-emerald-200",
   medium: "bg-amber-50 text-amber-700 border-amber-200",
   high: "bg-red-50 text-red-700 border-red-200",
+};
+
+const compatibilityStyles = {
+  match: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  mismatch: "bg-red-50 text-red-700 border-red-200",
+  unknown: "bg-amber-50 text-amber-700 border-amber-200",
 };
 
 const exampleDiff = `diff --git a/src/api/payments.js b/src/api/payments.js
@@ -89,6 +96,7 @@ export default function ImpactAnalysis() {
   const codeRelations = useMemo(() => buildCodeRelations(files), [files]);
   const graphSummary = useMemo(() => summarizeCodeGraph(codeRelations), [codeRelations]);
   const relatedPaths = useMemo(() => relatedPathsForChangedFiles(codeRelations, changedFiles), [codeRelations, changedFiles]);
+  const compatibility = useMemo(() => compareProjectAndPrRepository(project, prMeta), [project, prMeta]);
 
   const handleFetchPr = async () => {
     if (!prUrl.trim()) {
@@ -103,9 +111,11 @@ export default function ImpactAnalysis() {
       setChangeInput(formatPrDiffForImpactAnalysis(fetched));
       setResult("");
       setRiskLevel(null);
+      const fetchedCompatibility = compareProjectAndPrRepository(project, fetched);
       toast({
-        title: "PR diff loaded",
+        title: fetchedCompatibility.status === "mismatch" ? "PR diff loaded with repository warning" : "PR diff loaded",
         description: `${fetched.repositoryFullName}#${fetched.prNumber} · ${fetched.changedFilesCount || fetched.changedFiles?.length || 0} files`,
+        variant: fetchedCompatibility.status === "mismatch" ? "destructive" : undefined,
       });
     } catch (error) {
       toast({
@@ -149,6 +159,7 @@ export default function ImpactAnalysis() {
           related_files: payload.relatedPaths,
           relevant_relations: payload.relevantRelations.map((relation) => `${relation.from_file}->${relation.to_file || relation.import_path}`),
           relevant_files: payload.relevantFiles.map((file) => file.path),
+          repository_compatibility: prMeta ? compatibility : null,
           pr_metadata: prMeta
             ? {
                 repositoryFullName: prMeta.repositoryFullName,
@@ -246,12 +257,21 @@ export default function ImpactAnalysis() {
               </Button>
             </div>
             {prMeta && (
-              <div className="rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-sm text-blue-800">
-                <p className="font-medium truncate">{prMeta.repositoryFullName}#{prMeta.prNumber}: {prMeta.title}</p>
-                <p className="text-xs mt-1">
-                  {prMeta.changedFilesCount || prMeta.changedFiles?.length || 0} files · +{prMeta.additions || 0} -{prMeta.deletions || 0} · source: {prMeta.source || "unknown"}
-                  {prMeta.truncated ? " · diff truncated" : ""}
-                </p>
+              <div className="space-y-2">
+                <div className="rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-sm text-blue-800">
+                  <p className="font-medium truncate">{prMeta.repositoryFullName}#{prMeta.prNumber}: {prMeta.title}</p>
+                  <p className="text-xs mt-1">
+                    {prMeta.changedFilesCount || prMeta.changedFiles?.length || 0} files · +{prMeta.additions || 0} -{prMeta.deletions || 0} · source: {prMeta.source || "unknown"}
+                    {prMeta.truncated ? " · diff truncated" : ""}
+                  </p>
+                </div>
+                <div className={`rounded-lg border px-3 py-2 text-sm ${compatibilityStyles[compatibility.status] || compatibilityStyles.unknown}`}>
+                  <p className="font-medium flex items-center gap-1.5">
+                    {compatibility.status === "match" ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+                    Repository compatibility: {compatibility.status}
+                  </p>
+                  <p className="text-xs mt-1">{compatibility.message}</p>
+                </div>
               </div>
             )}
           </div>
