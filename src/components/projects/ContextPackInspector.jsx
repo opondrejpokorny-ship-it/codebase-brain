@@ -334,6 +334,9 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
   const otherContextRelations = selectedRelations.filter((relation) => !isChangedFileRelation(relation, changedSet) && !isMissingContextRelation(relation));
   const missingPathGuesses = uniqueMissingPathGuesses(missingContextRelations);
   const coverage = buildCoverageSummary(directChangedRelations, missingContextRelations);
+  const queuedTargetSet = new Set(queuedTargets.map((item) => item.target).filter(Boolean));
+  const allCurrentMissingTargetsQueued = missingPathGuesses.length > 0 && missingPathGuesses.every((path) => queuedTargetSet.has(path));
+  const queueButtonActive = queued || allCurrentMissingTargetsQueued;
 
   const handleCopy = async () => {
     const text = buildCopyText({ contextPack, selectedFiles, directChangedRelations, otherContextRelations, missingContextRelations, coverage, efficiency });
@@ -464,7 +467,7 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
         onCopyPaths={handleCopyMissingPaths}
         copiedPaths={copiedPaths}
         onAddToQueue={handleAddToQueue}
-        queued={queued}
+        queued={queueButtonActive}
         queuedTargets={queuedTargets}
         onCopyQueue={handleCopyQueue}
         copiedQueue={copiedQueue}
