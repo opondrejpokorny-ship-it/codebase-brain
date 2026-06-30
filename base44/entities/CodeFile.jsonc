@@ -1,0 +1,28 @@
+{
+  "name": "CodeFile",
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string"
+    },
+    "path": {
+      "type": "string"
+    },
+    "language": {
+      "type": "string"
+    },
+    "content": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "size": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "project_id",
+    "path"
+  ]
+}

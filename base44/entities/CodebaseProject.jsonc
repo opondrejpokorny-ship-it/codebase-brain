@@ -1,0 +1,36 @@
+{
+  "name": "CodebaseProject",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "repository_url": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "indexed",
+        "error"
+      ],
+      "default": "draft"
+    },
+    "detected_stack": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "summary": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "name"
+  ]
+}
