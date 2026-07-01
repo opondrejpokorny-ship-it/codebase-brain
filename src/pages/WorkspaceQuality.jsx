@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Activity, ArrowLeft, ArrowRight, CheckCircle, Download, Loader2, ShieldAlert, SlidersHorizontal, TrendingDown, TrendingUp } from 'lucide-react';
+import { Activity, ArrowLeft, ArrowRight, CheckCircle, Download, Loader2, ShieldAlert, SlidersHorizontal, Trash2, TrendingDown, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { base44 } from '@/api/base44Client';
 import { buildWorkspaceQualityOverview } from '@/lib/workspaceQualityUtils';
@@ -8,7 +8,7 @@ import { scoreToneClasses } from '@/lib/productQualityUtils';
 import { applyWorkspaceQualityControls, WORKSPACE_QUALITY_FILTERS, WORKSPACE_QUALITY_SORTS } from '@/lib/workspaceQualityListUtils';
 import { readWorkspaceQualityPreference, writeWorkspaceQualityPreference } from '@/lib/workspaceQualityPreferenceUtils';
 import { downloadWorkspaceQualityMarkdownReport } from '@/lib/workspaceQualityReportUtils';
-import { formatSnapshotDate, listWorkspaceQualitySnapshots, saveWorkspaceQualitySnapshot, summarizeWorkspaceQualityTrend } from '@/lib/workspaceQualityTrendUtils';
+import { clearWorkspaceQualitySnapshots, formatSnapshotDate, listWorkspaceQualitySnapshots, saveWorkspaceQualitySnapshot, summarizeWorkspaceQualityTrend } from '@/lib/workspaceQualityTrendUtils';
 import { readWorkspaceOptions } from '@/lib/workspaceOptionsUtils';
 import { summarizeWorkspaceTarget } from '@/lib/workspaceTargetUtils';
 
@@ -97,6 +97,11 @@ export default function WorkspaceQuality() {
     setSnapshots(listWorkspaceQualitySnapshots());
   }
 
+  function handleClearSnapshots() {
+    clearWorkspaceQualitySnapshots();
+    setSnapshots([]);
+  }
+
   function handleDownloadReport() {
     downloadWorkspaceQualityMarkdownReport({ overview, snapshots, options: workspaceOptions });
   }
@@ -143,12 +148,14 @@ export default function WorkspaceQuality() {
               </div>
               <div className="flex flex-col sm:flex-row gap-2">
                 <Button variant="outline" onClick={handleDownloadReport} className="gap-1.5 cursor-pointer"><Download className="w-4 h-4" /> Download report</Button>
+                {snapshots.length > 0 && <Button variant="outline" onClick={handleClearSnapshots} className="gap-1.5 cursor-pointer"><Trash2 className="w-4 h-4" /> Clear snapshots</Button>}
                 <Button onClick={handleSaveSnapshot} className="cursor-pointer">Save snapshot</Button>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <TrendBadge trend={trend} />
               <TargetBadge target={target} />
+              {snapshots.length > 0 && <span className="text-xs text-slate-500">{snapshots.length} local snapshots saved</span>}
               {trend.previous && <span className="text-xs text-slate-500">Last saved: {formatSnapshotDate(trend.previous.created_at)} · {trend.previous.average}% average</span>}
             </div>
             {snapshots.length > 0 && (
