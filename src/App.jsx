@@ -15,6 +15,7 @@ import ResetPassword from '@/pages/ResetPassword';
 import Home from '@/pages/Home';
 import AddRepository from '@/pages/AddRepository';
 import ProjectDetailWithReadiness from '@/pages/ProjectDetailWithReadiness';
+import ProductQualityDashboard from '@/pages/ProductQualityDashboard';
 import ImpactAnalysisWithEfficiency from '@/pages/ImpactAnalysisWithEfficiency';
 import ImpactLauncher from '@/pages/ImpactLauncher';
 import PullRequestInbox from '@/pages/PullRequestInbox';
@@ -61,6 +62,7 @@ const AuthenticatedApp = () => {
           <Route path="/diagnostics" element={<RuntimeDiagnostics />} />
           <Route path="/github/repositories" element={<InstalledRepositories />} />
           <Route path="/project/:id" element={<ProjectDetailWithReadiness />} />
+          <Route path="/project/:id/quality" element={<ProductQualityDashboard />} />
           <Route path="/project/:id/search" element={<CodeSearch />} />
           <Route path="/project/:id/architecture" element={<ArchitectureOverview />} />
           <Route path="/project/:id/impact" element={<ImpactAnalysisWithEfficiency />} />
