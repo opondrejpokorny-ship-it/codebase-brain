@@ -12,6 +12,7 @@ export function buildImpactAnalysisHistoryRecord({ projectId, prMeta, compatibil
     input: changeInput,
     result: calibrated.text,
     riskLevel: calibrated.riskLevel,
+    reviewVerdict: calibrated.reviewVerdict || null,
     changedFiles: payload.changedFiles,
     changedSymbols: payload.changedSymbols,
     relatedFiles: payload.relatedPaths,

@@ -46,7 +46,7 @@ export function summarizeProductHealth(sections = PRODUCT_HEALTH_SECTIONS) {
   const counts = items.reduce((acc, item) => {
     acc[item.status] = (acc[item.status] || 0) + 1;
     return acc;
-  }, {});
+  }, /** @type {Record<string, number>} */ ({}));
   return {
     total: items.length,
     ready: counts.ready || 0,
@@ -57,11 +57,11 @@ export function summarizeProductHealth(sections = PRODUCT_HEALTH_SECTIONS) {
 }
 
 export function healthToneClasses(tone = 'slate') {
-  const tones = {
+  const tones = /** @type {Record<string, string>} */ ({
     green: 'border-emerald-200 bg-emerald-50 text-emerald-800',
     blue: 'border-blue-200 bg-blue-50 text-blue-800',
     amber: 'border-amber-200 bg-amber-50 text-amber-800',
     slate: 'border-slate-200 bg-slate-50 text-slate-800',
-  };
+  });
   return tones[tone] || tones.slate;
 }

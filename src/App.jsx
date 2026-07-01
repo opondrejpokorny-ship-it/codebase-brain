@@ -27,6 +27,8 @@ import ProjectRules from '@/pages/ProjectRules';
 import MissingContextImportQueue from '@/pages/MissingContextImportQueue';
 import CodeSearch from '@/pages/CodeSearch';
 import ArchitectureOverview from '@/pages/ArchitectureOverview';
+import ProjectDecisions from '@/pages/ProjectDecisions';
+import McpSetup from '@/pages/McpSetup';
 import RuntimeDiagnostics from '@/pages/RuntimeDiagnostics';
 import InstalledRepositories from '@/pages/InstalledRepositories';
 import AppLayout from '@/components/layout/AppLayout';
@@ -73,6 +75,8 @@ const AuthenticatedApp = () => {
           <Route path="/project/:id/quality" element={<ProductQualityDashboard />} />
           <Route path="/project/:id/search" element={<CodeSearch />} />
           <Route path="/project/:id/architecture" element={<ArchitectureOverview />} />
+          <Route path="/project/:id/decisions" element={<ProjectDecisions />} />
+          <Route path="/project/:id/mcp" element={<McpSetup />} />
           <Route path="/project/:id/impact" element={<ImpactAnalysisWithEfficiency />} />
           <Route path="/project/:id/pr-inbox" element={<PullRequestInbox />} />
           <Route path="/project/:id/import-queue" element={<MissingContextImportQueue />} />

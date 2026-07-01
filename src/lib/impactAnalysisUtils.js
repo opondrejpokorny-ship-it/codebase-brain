@@ -98,6 +98,24 @@ export function initialRiskLevel(changeInput = "", changedFiles = [], relations 
   return "low";
 }
 
+export function riskLevelToReviewVerdict(riskLevel = "medium", { signals = [], changedFiles = [], relatedText = "" } = {}) {
+  const normalizedRisk = String(riskLevel || "medium").toLowerCase();
+  const highSignal = signals.some((signal) => /Payment|Authentication|Database|Environment|Deletion/.test(signal));
+  const destructiveSignal = signals.some((signal) => /Deletion|Environment/.test(signal));
+  const broadChange = changedFiles.length >= 12;
+  const noConfirmedRelated = changedFiles.length > 0 && !String(relatedText || "").trim();
+
+  if (normalizedRisk === "high" || destructiveSignal || (highSignal && broadChange)) return "BLOCK";
+  if (normalizedRisk === "medium" || highSignal || broadChange || noConfirmedRelated) return "REVIEW";
+  return "SAFE";
+}
+
+export function reviewVerdictLabel(verdict = "REVIEW") {
+  if (verdict === "SAFE") return "SAFE — proceed after the listed lightweight checks.";
+  if (verdict === "BLOCK") return "BLOCK — do not merge until the blocking risks or missing context are resolved.";
+  return "REVIEW — human review and the recommended tests are needed before merge.";
+}
+
 export function selectRelevantFilesForImpact(files = [], changedFiles = [], changeInput = "", limit = 10, relatedPaths = []) {
   const pack = buildContextPack({ files, question: changeInput, changedFiles, diffText: changeInput, maxTokens: 12000 });
   const selected = pack.selectedFiles.length ? pack.selectedFiles : files.slice(0, limit);
@@ -142,9 +160,10 @@ Rules:
 - Answer only from the provided project context, selected files, submitted diff/change list, and graph relationships.
 - Do not claim you ran tests.
 - Use concrete file paths.
+- Return an explicit Review verdict: SAFE, REVIEW, or BLOCK.
 - Do not invent direct dependencies or related files. ${confirmedRelatedInstruction}
 
-Return structured Markdown with sections: Summary, Risk level, Why this risk level, Changed files, Related files, Context files reviewed, Affected flows, Main risks, Recommended tests, Regression checklist, Missing context, Safe to merge?
+Return structured Markdown with sections: Summary, Risk level, Review verdict, Why this risk level, Changed files, Related files, Context files reviewed, Affected flows, Main risks, Recommended tests, Regression checklist, Missing context, Safe to merge?
 
 PROJECT:
 Name: ${project?.name || "Unknown"}
@@ -198,9 +217,17 @@ function sectionLines(markdown = "", heading = "") {
   return cleanBulletList(section(markdown, heading).split(/\r?\n/));
 }
 
+function declaredReviewVerdict(markdown = "") {
+  const text = section(markdown, "Review verdict") || section(markdown, "Verdict");
+  return (text.match(/\b(SAFE|REVIEW|BLOCK)\b/i)?.[1] || "").toUpperCase();
+}
+
 export function calibrateImpactAnalysisOutput({ text = "", heuristicRisk = "medium", signals = [], changeInput = "" }) {
   const body = String(text || "").trim();
-  if (!body) return { text: "No analysis was generated.", riskLevel: heuristicRisk || "medium" };
+  if (!body) {
+    const reviewVerdict = riskLevelToReviewVerdict(heuristicRisk, { signals, changedFiles: extractChangedFiles(changeInput) });
+    return { text: "No analysis was generated.", riskLevel: heuristicRisk || "medium", reviewVerdict };
+  }
 
   const declaredRisk = (section(body, "Risk level").match(/\b(high|medium|low)\b/i)?.[1] || "").toLowerCase();
   let riskLevel = declaredRisk || heuristicRisk || "medium";
@@ -217,10 +244,17 @@ export function calibrateImpactAnalysisOutput({ text = "", heuristicRisk = "medi
   const confirmedRelated = changedFiles.length ? relatedText : "";
   const recommendedTests = sectionLines(body, "Recommended tests");
   const regressionChecklist = sectionLines(body, "Regression checklist");
+  const computedVerdict = riskLevelToReviewVerdict(riskLevel, { signals, changedFiles, relatedText: confirmedRelated });
+  const reviewVerdict = declaredReviewVerdict(body) || computedVerdict;
 
   let calibrated = body;
   if (riskLevel !== declaredRisk && declaredRisk) {
     calibrated = replaceMarkdownSection(calibrated, "Risk level", riskLevel.charAt(0).toUpperCase() + riskLevel.slice(1));
+  }
+  if (!declaredReviewVerdict(calibrated)) {
+    calibrated = `## Review verdict\n${reviewVerdictLabel(reviewVerdict)}\n\n${calibrated}`;
+  } else {
+    calibrated = replaceMarkdownSection(calibrated, "Review verdict", reviewVerdictLabel(reviewVerdict));
   }
   if (simpleLowRiskDiff && riskLevel === "low") {
     calibrated = replaceMarkdownSection(
@@ -235,5 +269,5 @@ export function calibrateImpactAnalysisOutput({ text = "", heuristicRisk = "medi
   if (!contextText) {
     calibrated += `\n\n## Context files reviewed\nNot available from the model output.`;
   }
-  return { text: calibrated, riskLevel, recommendedTests, regressionChecklist };
+  return { text: calibrated, riskLevel, reviewVerdict, recommendedTests, regressionChecklist };
 }

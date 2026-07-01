@@ -1,26 +1,48 @@
 import { summarizeWorkspaceTarget } from '@/lib/workspaceTargetUtils';
 
+function asAny(value) {
+  return /** @type {any} */ (value || {});
+}
+
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
 function line(value = '') {
   return `${value}\n`;
 }
 
 function tierCount(overview = {}, label) {
-  return overview.tiers?.[label] || 0;
+  const safeOverview = asAny(overview);
+  const tiers = asAny(safeOverview.tiers);
+  return tiers[label] || 0;
 }
 
 function formatProjectRow(item = {}) {
-  const name = item.project?.name || 'Unnamed project';
-  const score = item.report?.overall ?? 0;
-  const tier = item.report?.tier?.label || 'Unknown';
-  const priority = item.report?.priorities?.[0]?.title || 'No priority';
-  return `| ${name} | ${score}% | ${tier} | ${priority} |`;
+  const safeItem = asAny(item);
+  const project = asAny(safeItem.project);
+  const report = asAny(safeItem.report);
+  const tier = asAny(report.tier);
+  const priorities = asArray(report.priorities);
+  const name = project.name || 'Unnamed project';
+  const score = report.overall ?? 0;
+  const tierLabel = tier.label || 'Unknown';
+  const priority = asAny(priorities[0]).title || 'No priority';
+  return `| ${name} | ${score}% | ${tierLabel} | ${priority} |`;
 }
 
 function formatSnapshotRow(snapshot = {}) {
-  return `| ${snapshot.created_at || ''} | ${snapshot.average || 0}% | ${snapshot.needs_attention || 0} | ${snapshot.total || 0} |`;
+  const safeSnapshot = asAny(snapshot);
+  return `| ${safeSnapshot.created_at || ''} | ${safeSnapshot.average || 0}% | ${safeSnapshot.needs_attention || 0} | ${safeSnapshot.total || 0} |`;
 }
 
-export function buildWorkspaceQualityMarkdownReport({ overview = {}, snapshots = [], options = {} } = {}) {
+export function buildWorkspaceQualityMarkdownReport(input = {}) {
+  const safeInput = asAny(input);
+  const overview = asAny(safeInput.overview);
+  const snapshots = asArray(safeInput.snapshots);
+  const options = asAny(safeInput.options);
+  const needsAttention = asArray(overview.needsAttention);
+  const strongest = asArray(overview.strongest);
   const createdAt = new Date().toISOString();
   const target = summarizeWorkspaceTarget(overview.average || 0, options.quality_target || 70);
   let markdown = '';
@@ -35,7 +57,7 @@ export function buildWorkspaceQualityMarkdownReport({ overview = {}, snapshots =
   markdown += line(`- Quality target: ${target.target}%`);
   markdown += line(`- Target status: ${target.met ? 'Met' : 'Below target'} (${target.label})`);
   markdown += line(`- Total projects: ${overview.total || 0}`);
-  markdown += line(`- Projects needing attention: ${overview.needsAttention?.length || 0}`);
+  markdown += line(`- Projects needing attention: ${needsAttention.length || 0}`);
   markdown += line();
   markdown += line('## Tier distribution');
   markdown += line();
@@ -48,8 +70,8 @@ export function buildWorkspaceQualityMarkdownReport({ overview = {}, snapshots =
   markdown += line();
   markdown += line('| Project | Score | Tier | Top priority |');
   markdown += line('| --- | ---: | --- | --- |');
-  if (overview.needsAttention?.length) {
-    overview.needsAttention.forEach((item) => { markdown += line(formatProjectRow(item)); });
+  if (needsAttention.length) {
+    needsAttention.forEach((item) => { markdown += line(formatProjectRow(item)); });
   } else {
     markdown += line('| None | — | — | No urgent quality gaps detected |');
   }
@@ -58,8 +80,8 @@ export function buildWorkspaceQualityMarkdownReport({ overview = {}, snapshots =
   markdown += line();
   markdown += line('| Project | Score | Tier | Top priority |');
   markdown += line('| --- | ---: | --- | --- |');
-  if (overview.strongest?.length) {
-    overview.strongest.forEach((item) => { markdown += line(formatProjectRow(item)); });
+  if (strongest.length) {
+    strongest.forEach((item) => { markdown += line(formatProjectRow(item)); });
   } else {
     markdown += line('| None | — | — | — |');
   }
@@ -76,16 +98,16 @@ export function buildWorkspaceQualityMarkdownReport({ overview = {}, snapshots =
   return markdown;
 }
 
-export async function copyWorkspaceQualityMarkdownReport({ overview = {}, snapshots = [], options = {} } = {}) {
+export async function copyWorkspaceQualityMarkdownReport(input = {}) {
   if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) return false;
-  const markdown = buildWorkspaceQualityMarkdownReport({ overview, snapshots, options });
+  const markdown = buildWorkspaceQualityMarkdownReport(input);
   await navigator.clipboard.writeText(markdown);
   return true;
 }
 
-export function downloadWorkspaceQualityMarkdownReport({ overview = {}, snapshots = [], options = {} } = {}) {
+export function downloadWorkspaceQualityMarkdownReport(input = {}) {
   if (typeof document === 'undefined') return false;
-  const markdown = buildWorkspaceQualityMarkdownReport({ overview, snapshots, options });
+  const markdown = buildWorkspaceQualityMarkdownReport(input);
   const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
