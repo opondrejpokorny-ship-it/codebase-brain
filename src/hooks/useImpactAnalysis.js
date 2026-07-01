@@ -5,6 +5,7 @@ import { buildCodeRelations, relatedPathsForChangedFiles, summarizeCodeGraph } f
 import { buildContextPack } from "@/lib/contextPackBuilder";
 import { resolveContextDepthPreset } from "@/lib/contextRelevanceScoring";
 import { calibrateImpactAnalysisOutput, extractChangedFiles, heuristicRiskSignals, initialRiskLevel } from "@/lib/impactAnalysisUtils";
+import { detectChangedSymbols } from "@/lib/changedSymbolUtils";
 import { compareProjectAndPrRepository } from "@/lib/repositoryCompatibilityUtils";
 import { formatPrDiffForImpactAnalysis } from "@/lib/githubPrUtils";
 import { buildImpactAnalysisPromptWithDepth } from "@/lib/impactAnalysisPromptBuilder";
@@ -61,6 +62,7 @@ export function useImpactAnalysis(projectId) {
 
   const depthPreset = useMemo(() => resolveContextDepthPreset(contextDepth), [contextDepth]);
   const changedFiles = useMemo(() => extractChangedFiles(changeInput), [changeInput]);
+  const changedSymbols = useMemo(() => detectChangedSymbols({ files, changedFiles, diffText: changeInput }), [files, changedFiles, changeInput]);
   const signals = useMemo(() => heuristicRiskSignals(changeInput, changedFiles), [changeInput, changedFiles]);
   const heuristicRisk = useMemo(() => initialRiskLevel(changeInput, changedFiles), [changeInput, changedFiles]);
   const codeRelations = useMemo(() => buildCodeRelations(files), [files]);
@@ -163,6 +165,7 @@ export function useImpactAnalysis(projectId) {
     setContextDepth,
     depthPreset,
     changedFiles,
+    changedSymbols,
     signals,
     heuristicRisk,
     codeRelations,
