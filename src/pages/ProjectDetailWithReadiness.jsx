@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import ProjectDetail from "@/pages/ProjectDetail";
 import PrivateImportReadinessCard from "@/components/projects/PrivateImportReadinessCard";
 import ContextEfficiencyCard from "@/components/projects/ContextEfficiencyCard";
+import ContextFreshnessBanner from "@/components/projects/ContextFreshnessBanner";
 import SmartContextActions from "@/components/projects/SmartContextActions";
 import { useProjectReadinessContext } from "@/hooks/useProjectReadinessContext";
 import { pickDefaultProjectContextFiles } from "@/lib/contextSelectionPresets";
@@ -15,6 +16,7 @@ export default function ProjectDetailWithReadiness() {
   return (
     <div className="space-y-6">
       {project && <PrivateImportReadinessCard project={project} repositoryLinks={repositoryLinks} />}
+      {project && <ContextFreshnessBanner project={project} files={files} />}
       {files.length > 0 && (
         <div className="space-y-3">
           <ContextEfficiencyCard
