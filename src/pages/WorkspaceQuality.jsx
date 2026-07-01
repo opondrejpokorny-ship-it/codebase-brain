@@ -101,6 +101,11 @@ export default function WorkspaceQuality() {
             <Activity className="w-6 h-6" /> Workspace Quality
           </h1>
           <p className="text-slate-500 mt-1 max-w-2xl">Portfolio-level product readiness across all Codebase Brain projects.</p>
+          <Link to="/workspace/settings" className="inline-flex mt-3">
+            <Button variant="outline" size="sm" className="gap-1.5 cursor-pointer">
+              <SlidersHorizontal className="w-3.5 h-3.5" /> Workspace options
+            </Button>
+          </Link>
         </div>
         <div className={`rounded-xl border px-4 py-3 min-w-48 ${scoreToneClasses(overview.tierTone)}`}>
           <div className="text-xs uppercase tracking-wider opacity-80">Workspace average</div>
