@@ -1,4 +1,4 @@
-import { GitBranch } from "lucide-react";
+import { Braces, GitBranch } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { impactRiskStyles } from "@/lib/impactAnalysisDisplayUtils";
 
@@ -6,12 +6,13 @@ import { impactRiskStyles } from "@/lib/impactAnalysisDisplayUtils";
  * @param {{
  *   heuristicRisk?: string;
  *   changedFiles?: string[];
+ *   changedSymbols?: Array<{ name: string; type: string; path: string; line?: number; exported?: boolean }>;
  *   graphSummary?: { totalRelations?: number };
  *   relatedPaths?: string[];
  *   signals?: string[];
  * }} props
  */
-export default function PreScanPanel({ heuristicRisk, changedFiles = [], graphSummary = {}, relatedPaths = [], signals = [] }) {
+export default function PreScanPanel({ heuristicRisk, changedFiles = [], changedSymbols = [], graphSummary = {}, relatedPaths = [], signals = [] }) {
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-5">
       <h3 className="font-heading font-semibold text-sm text-slate-900 mb-3">Pre-scan</h3>
@@ -23,6 +24,21 @@ export default function PreScanPanel({ heuristicRisk, changedFiles = [], graphSu
         <div>
           <p className="text-xs text-slate-400 mb-1">Changed files detected</p>
           {changedFiles.length ? <div className="space-y-1 max-h-32 overflow-y-auto">{changedFiles.slice(0, 12).map((file) => <p key={file} className="text-xs font-mono text-slate-700 truncate">{file}</p>)}{changedFiles.length > 12 && <p className="text-xs text-slate-400">+{changedFiles.length - 12} more</p>}</div> : <p className="text-xs text-slate-400">No file paths detected yet.</p>}
+        </div>
+        <div>
+          <p className="text-xs text-slate-400 mb-1">Changed symbols</p>
+          {changedSymbols.length ? (
+            <div className="space-y-1 max-h-28 overflow-y-auto">
+              {changedSymbols.slice(0, 8).map((symbol) => (
+                <p key={`${symbol.path}:${symbol.name}:${symbol.line}`} className="text-xs text-slate-700 truncate flex items-center gap-1.5">
+                  <Braces className="w-3 h-3 text-slate-400" />
+                  <span className="font-medium">{symbol.name}</span>
+                  <span className="text-slate-400">{symbol.type}</span>
+                  <span className="font-mono text-slate-400">{symbol.path}:{symbol.line || "?"}</span>
+                </p>
+              ))}
+            </div>
+          ) : <p className="text-xs text-slate-400">No changed symbols detected yet.</p>}
         </div>
         <div>
           <p className="text-xs text-slate-400 mb-1">Code Graph Lite</p>
