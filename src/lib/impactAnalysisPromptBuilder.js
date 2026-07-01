@@ -86,6 +86,8 @@ Rules:
 - Do not claim tests were run.
 - Mention missing context.
 - Use concrete file paths.
+- Return an explicit Review verdict using exactly one of: SAFE, REVIEW, BLOCK.
+- SAFE means the change looks safe after lightweight checks; REVIEW means human review/tests are needed; BLOCK means do not merge until blocking risks or missing context are resolved.
 - When changed symbols are available, describe the likely impact at symbol level.
 - In the "Risk memory influence" section, explicitly mention any relevant frequently changed symbols from Risk Memory by name and count. If none are relevant, say that no relevant symbol-level history was found.
 - ${confirmedRelatedInstruction}
@@ -94,6 +96,7 @@ Return structured Markdown with exactly these sections:
 
 ## Summary
 ## Risk level
+## Review verdict
 ## Why this risk level
 ## Changed files
 ## Related files
