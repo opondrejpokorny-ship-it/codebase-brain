@@ -8,29 +8,8 @@ import ComingNextCard from "@/components/projects/ComingNextCard";
 import WorkspaceQualityOverview from "@/components/projects/WorkspaceQualityOverview";
 import WorkspaceOnboardingChecklist from "@/components/projects/WorkspaceOnboardingChecklist";
 import WorkspaceOptionsSummary from "@/components/projects/WorkspaceOptionsSummary";
-import { buildProductQualityReport } from "@/lib/productQualityUtils";
+import { applyProjectQualityListControls, PROJECT_QUALITY_FILTERS, PROJECT_QUALITY_SORTS } from "@/lib/projectQualityListUtils";
 import { readHomePreference, writeHomePreference } from "@/lib/homePreferenceUtils";
-
-function decoratedProject(project) {
-  return { project, report: buildProductQualityReport({ project }) };
-}
-
-function filterProjects(items, filter) {
-  if (filter === "needs_action") return items.filter((item) => item.report.overall < 70 || item.report.priorities.some((priority) => priority.severity === "high"));
-  if (filter === "product_ready") return items.filter((item) => item.report.tier.label === "Product-ready");
-  if (filter === "strong_beta") return items.filter((item) => item.report.tier.label === "Strong beta");
-  if (filter === "mvp_plus") return items.filter((item) => item.report.tier.label === "MVP+");
-  if (filter === "hardening") return items.filter((item) => item.report.tier.label === "Needs hardening");
-  return items;
-}
-
-function sortProjects(items, sortMode) {
-  const copy = [...items];
-  if (sortMode === "quality_desc") return copy.sort((a, b) => b.report.overall - a.report.overall);
-  if (sortMode === "quality_asc") return copy.sort((a, b) => a.report.overall - b.report.overall);
-  if (sortMode === "name") return copy.sort((a, b) => String(a.project.name || "").localeCompare(String(b.project.name || "")));
-  return copy.sort((a, b) => new Date(b.project.created_date || 0).getTime() - new Date(a.project.created_date || 0).getTime());
-}
 
 export default function Home() {
   const [projects, setProjects] = useState([]);
@@ -52,10 +31,10 @@ export default function Home() {
     writeHomePreference("sortMode", sortMode);
   }, [sortMode]);
 
-  const visibleProjects = useMemo(() => {
-    const decorated = projects.map(decoratedProject);
-    return sortProjects(filterProjects(decorated, qualityFilter), sortMode).map((item) => item.project);
-  }, [projects, qualityFilter, sortMode]);
+  const visibleProjects = useMemo(
+    () => applyProjectQualityListControls(projects, { filter: qualityFilter, sortMode }),
+    [projects, qualityFilter, sortMode]
+  );
 
   return (
     <div className="space-y-8">
@@ -112,12 +91,7 @@ export default function Home() {
                   onChange={(event) => setQualityFilter(event.target.value)}
                   className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-slate-300"
                 >
-                  <option value="all">All quality tiers</option>
-                  <option value="needs_action">Needs action</option>
-                  <option value="product_ready">Product-ready</option>
-                  <option value="strong_beta">Strong beta</option>
-                  <option value="mvp_plus">MVP+</option>
-                  <option value="hardening">Needs hardening</option>
+                  {PROJECT_QUALITY_FILTERS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                 </select>
                 <label className="sr-only" htmlFor="quality-sort">Sort projects</label>
                 <select
@@ -126,10 +100,7 @@ export default function Home() {
                   onChange={(event) => setSortMode(event.target.value)}
                   className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-slate-300"
                 >
-                  <option value="created_desc">Newest first</option>
-                  <option value="quality_asc">Lowest quality first</option>
-                  <option value="quality_desc">Highest quality first</option>
-                  <option value="name">Name A-Z</option>
+                  {PROJECT_QUALITY_SORTS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                 </select>
               </div>
             )}
