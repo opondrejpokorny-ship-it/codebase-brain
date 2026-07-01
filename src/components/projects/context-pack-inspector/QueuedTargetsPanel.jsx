@@ -1,12 +1,23 @@
 import { Check, ClipboardCopy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
+/**
+ * @param {{
+ *   queue?: Array<{ target: string }>;
+ *   title?: string;
+ *   description?: string;
+ *   onCopyQueue?: () => void;
+ *   copiedQueue?: boolean;
+ *   onClearQueue?: () => void;
+ *   showClear?: boolean;
+ * }} props
+ */
 export default function QueuedTargetsPanel({
   queue = [],
   title = "Queued import targets",
   description = "Persisted when possible; local fallback remains.",
   onCopyQueue,
-  copiedQueue,
+  copiedQueue = false,
   onClearQueue,
   showClear = true,
 }) {
