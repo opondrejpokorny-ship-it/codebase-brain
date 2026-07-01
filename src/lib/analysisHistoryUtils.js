@@ -243,13 +243,15 @@ function formatCountList(items = [], fallback = "None") {
   return items.map((item) => `- ${item.name}: ${item.count}x`).join("\n");
 }
 
-export function formatRiskMemoryForPrompt(analyses = [], changedFiles = [], relatedFiles = [], riskSignals = []) {
+export function formatRiskMemoryForPrompt(analyses = [], changedFiles = [], relatedFiles = [], riskSignals = [], changedSymbols = []) {
   const memory = buildRiskMemory(analyses);
   const changed = new Set(normalizeList(changedFiles));
   const related = new Set(normalizeList(relatedFiles));
   const signals = new Set(normalizeList(riskSignals));
+  const symbolKeys = new Set(normalizeChangedSymbols(changedSymbols).map(symbolMemoryName));
 
   const matchingChangedFiles = memory.frequentlyChangedFiles.filter((item) => changed.has(item.name));
+  const matchingChangedSymbols = memory.frequentlyChangedSymbols.filter((item) => symbolKeys.has(item.name));
   const matchingHighRiskFiles = memory.highRiskFiles.filter((item) => changed.has(item.name) || related.has(item.name));
   const matchingLegacyHighRiskFiles = memory.legacyHighRiskFiles.filter((item) => changed.has(item.name) || related.has(item.name));
   const matchingRiskSignals = memory.repeatedRiskSignals.filter((item) => signals.has(item.name));
@@ -266,7 +268,9 @@ All-time risk distribution: high ${memory.riskCounts.high}, medium ${memory.risk
 Current-calibration risk distribution: high ${memory.calibratedRiskCounts.high}, medium ${memory.calibratedRiskCounts.medium}, low ${memory.calibratedRiskCounts.low}
 Relevant frequently changed files:
 ${formatCountList(matchingChangedFiles)}
-Frequently changed symbols:
+Relevant frequently changed symbols:
+${formatCountList(matchingChangedSymbols)}
+Frequently changed symbols overall:
 ${formatCountList(memory.frequentlyChangedSymbols.slice(0, 8))}
 Relevant calibrated high-risk files:
 ${formatCountList(matchingHighRiskFiles)}
