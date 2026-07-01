@@ -36,6 +36,11 @@ function isCurrentRiskCalibration(analysis = {}) {
   return riskCalibrationVersion(analysis) >= CURRENT_RISK_CALIBRATION_VERSION;
 }
 
+function historyTime(value) {
+  const time = new Date(value || 0).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
 export function extractMarkdownSection(markdown = "", heading = "") {
   const text = String(markdown || "");
   if (!heading) return "";
@@ -89,7 +94,7 @@ export function mergeAnalysisHistories(...groups) {
       const key = item.id || `${item.created_date}|${item.input || ""}`;
       return arr.findIndex((candidate) => (candidate.id || `${candidate.created_date}|${candidate.input || ""}`) === key) === index;
     })
-    .sort((a, b) => new Date(b.created_date || 0) - new Date(a.created_date || 0));
+    .sort((a, b) => historyTime(b.created_date) - historyTime(a.created_date));
 }
 
 export function createAnalysisHistoryRecord({
@@ -218,24 +223,13 @@ Current risk calibration version: ${memory.currentCalibrationVersion}
 Calibrated analyses: ${memory.calibratedAnalyses}
 Legacy analyses from older calibration: ${memory.legacyAnalyses}
 All-time risk distribution: high ${memory.riskCounts.high}, medium ${memory.riskCounts.medium}, low ${memory.riskCounts.low}
-Calibrated risk distribution: high ${memory.calibratedRiskCounts.high}, medium ${memory.calibratedRiskCounts.medium}, low ${memory.calibratedRiskCounts.low}
-Legacy high-risk labels are advisory only and must not by themselves raise current risk.
-
-Changed files that appear repeatedly in history:
+Current-calibration risk distribution: high ${memory.calibratedRiskCounts.high}, medium ${memory.calibratedRiskCounts.medium}, low ${memory.calibratedRiskCounts.low}
+Relevant frequently changed files:
 ${formatCountList(matchingChangedFiles)}
-
-Changed or related files that previously appeared in calibrated high-risk analyses:
+Relevant calibrated high-risk files:
 ${formatCountList(matchingHighRiskFiles)}
-
-Changed or related files that previously appeared in legacy high-risk analyses:
+Relevant legacy high-risk files, lower confidence:
 ${formatCountList(matchingLegacyHighRiskFiles)}
-
-Risk signals repeated in history:
-${formatCountList(matchingRiskSignals)}
-
-Most frequent changed files overall:
-${formatCountList(memory.frequentlyChangedFiles.slice(0, 5))}
-
-Common recommended tests from previous analyses:
-${formatCountList(memory.commonRecommendedTests.slice(0, 5))}`;
+Repeated matching risk signals:
+${formatCountList(matchingRiskSignals)}`;
 }
