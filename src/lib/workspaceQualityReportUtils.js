@@ -1,3 +1,5 @@
+import { summarizeWorkspaceTarget } from '@/lib/workspaceTargetUtils';
+
 function line(value = '') {
   return `${value}\n`;
 }
@@ -18,8 +20,9 @@ function formatSnapshotRow(snapshot = {}) {
   return `| ${snapshot.created_at || ''} | ${snapshot.average || 0}% | ${snapshot.needs_attention || 0} | ${snapshot.total || 0} |`;
 }
 
-export function buildWorkspaceQualityMarkdownReport({ overview = {}, snapshots = [] } = {}) {
+export function buildWorkspaceQualityMarkdownReport({ overview = {}, snapshots = [], options = {} } = {}) {
   const createdAt = new Date().toISOString();
+  const target = summarizeWorkspaceTarget(overview.average || 0, options.quality_target || 70);
   let markdown = '';
   markdown += line('# Codebase Brain Workspace Quality Report');
   markdown += line();
@@ -27,7 +30,10 @@ export function buildWorkspaceQualityMarkdownReport({ overview = {}, snapshots =
   markdown += line();
   markdown += line('## Summary');
   markdown += line();
+  markdown += line(`- Workspace: ${options.workspace_name || 'Codebase Brain Workspace'}`);
   markdown += line(`- Workspace average: ${overview.average || 0}%`);
+  markdown += line(`- Quality target: ${target.target}%`);
+  markdown += line(`- Target status: ${target.met ? 'Met' : 'Below target'} (${target.label})`);
   markdown += line(`- Total projects: ${overview.total || 0}`);
   markdown += line(`- Projects needing attention: ${overview.needsAttention?.length || 0}`);
   markdown += line();
@@ -70,9 +76,9 @@ export function buildWorkspaceQualityMarkdownReport({ overview = {}, snapshots =
   return markdown;
 }
 
-export function downloadWorkspaceQualityMarkdownReport({ overview = {}, snapshots = [] } = {}) {
+export function downloadWorkspaceQualityMarkdownReport({ overview = {}, snapshots = [], options = {} } = {}) {
   if (typeof document === 'undefined') return false;
-  const markdown = buildWorkspaceQualityMarkdownReport({ overview, snapshots });
+  const markdown = buildWorkspaceQualityMarkdownReport({ overview, snapshots, options });
   const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
