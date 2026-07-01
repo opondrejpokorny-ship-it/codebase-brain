@@ -27,7 +27,7 @@ The current `src/lib/symbolExtractionUtils.js` already extracts JS/TS/Python/PHP
 
 ### 3. Context Pack Builder v2
 
-The existing context pack already records selected files, relation evidence, selection reasons, token estimates, and warnings. The next upgrade is to persist exported context packs as first-class analysis artifacts.
+The existing context pack already records selected files, relation evidence, selection reasons, token estimates, and warnings. The Context Pack Inspector can now export the active selected context as `context-pack.json` for Codex/Cursor/MCP/debug workflows.
 
 ### 4. Impact Analysis v2 verdicts
 
@@ -65,6 +65,10 @@ Added `src/components/projects/ReviewVerdictBadge.jsx` and surfaced `SAFE`, `REV
 
 Added `src/lib/reportDownloadUtils.js` and export controls in Architecture Overview. Users can now download the deterministic architecture report as Markdown and the underlying architecture facts as JSON. This is the first export surface toward `architecture-report.md`, `context-pack.json`, and `risk-report.md`.
 
+### 5i. Context Pack JSON export
+
+The Context Pack Inspector now exports the active selected context as JSON, including project metadata, depth, budget, efficiency, warnings, selected files with reasons and scores, selected relations, graph summary, changed files, and missing-context targets. This makes the selected context portable to coding agents and easier to debug.
+
 ### 6. GitHub App private import
 
 The repo already has the safe GitHub App skeleton, private import readiness, repository link metadata, and dry-run installation token helper. The next production step remains backend-only non-dry-run installation token creation behind feature flags.
@@ -88,7 +92,7 @@ Added `src/lib/mcpLiteTools.js` with a tool manifest and config-snippet generato
 ## Current implementation status
 
 - Product surfaces added: Search Codebase, Architecture, Graph Lens, Decisions, MCP Setup, Risk Memory, Project Rules.
-- Foundations added: graph persistence helpers, graph lens data builder, graph PR overlay, saved PR analysis overlay link, PR Inbox deep link, context freshness banners, review verdict badges, architecture report exports, product-context helpers, decision memory helpers, MCP Lite manifest, verdict calibration.
+- Foundations added: graph persistence helpers, graph lens data builder, graph PR overlay, saved PR analysis overlay link, PR Inbox deep link, context freshness banners, review verdict badges, architecture report exports, context pack JSON export, product-context helpers, decision memory helpers, MCP Lite manifest, verdict calibration.
 - Still intentionally deferred: running MCP server, backend-only private import token creation, queued webhook PR analysis, persisted Base44 entities for graph/decisions/context packs, local tree-sitter/LSP engine, and 3D/WebGL graph mode.
 
 ## Remaining implementation order
@@ -98,7 +102,7 @@ Added `src/lib/mcpLiteTools.js` with a tool manifest and config-snippet generato
 3. Add queued PR analysis from webhook deliveries without posting GitHub comments.
 4. Add read-only private repo import behind `GITHUB_PRIVATE_IMPORT_ENABLED`.
 5. Promote verdict badges into PR Inbox item cards.
-6. Extend exports to `context-pack.json` and `risk-report.md`.
+6. Extend exports to `risk-report.md`.
 7. Add Graph Lens v3 3D View after persistent graph storage is stable.
 8. Only after the product layer is stable, evaluate a bridge to a local engine or tree-sitter worker.
 
