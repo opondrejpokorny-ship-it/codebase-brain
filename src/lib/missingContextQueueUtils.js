@@ -46,16 +46,17 @@ async function persistQueueToProjectMetadata(projectId, queue = [], project = nu
 }
 
 function normalizeQueueItem(item = {}) {
-  if (!item?.target) return null;
+  const raw = /** @type {any} */ (item);
+  if (!raw?.target) return null;
   return {
-    target: item.target,
-    source_file: item.source_file || item.sourceFile || "",
-    import_path: item.import_path || item.importPath || "",
-    relation_type: item.relation_type || item.relationType || "missing_context",
-    status: item.status || "queued",
-    added_at: item.added_at || item.addedAt || new Date().toISOString(),
-    resolved_at: item.resolved_at || item.resolvedAt || null,
-    source_analysis_id: item.source_analysis_id || item.sourceAnalysisId || null,
+    target: raw.target,
+    source_file: raw.source_file || raw.sourceFile || "",
+    import_path: raw.import_path || raw.importPath || "",
+    relation_type: raw.relation_type || raw.relationType || "missing_context",
+    status: raw.status || "queued",
+    added_at: raw.added_at || raw.addedAt || new Date().toISOString(),
+    resolved_at: raw.resolved_at || raw.resolvedAt || null,
+    source_analysis_id: raw.source_analysis_id || raw.sourceAnalysisId || null,
   };
 }
 
@@ -127,7 +128,8 @@ export async function clearPersistentMissingContextQueue(projectId, project = nu
   return writePersistentMissingContextQueue(projectId, [], project);
 }
 
-export function missingContextQueueItem({ target, sourceFile = "", importPath = "", relationType = "missing_context", status = "queued", sourceAnalysisId = null } = {}) {
+export function missingContextQueueItem(input = {}) {
+  const { target, sourceFile = "", importPath = "", relationType = "missing_context", status = "queued", sourceAnalysisId = null } = /** @type {any} */ (input);
   if (!target) return null;
   return normalizeQueueItem({ target, source_file: sourceFile, import_path: importPath, relation_type: relationType, status, source_analysis_id: sourceAnalysisId, added_at: new Date().toISOString() });
 }
