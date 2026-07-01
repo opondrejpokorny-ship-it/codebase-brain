@@ -1,9 +1,9 @@
 // @ts-nocheck
 import { Database } from 'lucide-react';
-import OptionalEntityStatusBadge from '@/components/projects/OptionalEntityStatusBadge';
-import { optionalEntityNames } from '@/lib/optionalEntityRuntime';
+import CorePersistenceStatusPanel from '@/components/projects/CorePersistenceStatusPanel';
+import { CORE_OPTIONAL_ENTITIES } from '@/lib/optionalEntityGroups';
 
-export default function OptionalEntitiesStatusCard({ entities = optionalEntityNames(), title = 'Optional persistence' }) {
+export default function OptionalEntitiesStatusCard({ entities = CORE_OPTIONAL_ENTITIES, title = 'Optional persistence' }) {
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-5">
       <div className="flex items-start gap-2 mb-3">
@@ -13,11 +13,11 @@ export default function OptionalEntitiesStatusCard({ entities = optionalEntityNa
           <p className="text-xs text-slate-400 mt-1">Shows which optional Base44 entities are available and which features are using local fallback.</p>
         </div>
       </div>
-      <div className="flex flex-wrap gap-2">
-        {entities.map((entityName) => (
-          <OptionalEntityStatusBadge key={entityName} entityName={entityName} />
-        ))}
-      </div>
+      {entities === CORE_OPTIONAL_ENTITIES ? (
+        <CorePersistenceStatusPanel />
+      ) : (
+        <CorePersistenceStatusPanel className="hidden" />
+      )}
     </div>
   );
 }
