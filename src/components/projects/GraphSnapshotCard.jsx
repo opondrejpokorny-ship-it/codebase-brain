@@ -1,16 +1,35 @@
 // @ts-nocheck
-import { useMemo } from 'react';
-import { Download, Network } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Database, Download, Loader2, Network } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import GraphPersistenceStatusBadges from '@/components/projects/GraphPersistenceStatusBadges';
-import { buildGraphSnapshot, graphSnapshotToMarkdown } from '@/lib/graphPersistenceUtils';
+import { buildGraphSnapshot, graphSnapshotToMarkdown, persistGraphSnapshot } from '@/lib/graphPersistenceUtils';
+import { canWriteEntity, optionalEntity } from '@/lib/optionalEntityRuntime';
 import { downloadJsonReport, downloadMarkdownReport } from '@/lib/reportDownloadUtils';
 
 export default function GraphSnapshotCard({ project, files = [] }) {
   const snapshot = useMemo(() => buildGraphSnapshot({ project, files }), [project, files]);
   const unresolved = snapshot.coverage?.unresolved_imports || 0;
   const topFiles = snapshot.coverage?.top_connected_files || [];
+  const canPersistGraph = canWriteEntity('CodeRelation') || canWriteEntity('CodeSymbol');
+  const [persisting, setPersisting] = useState(false);
+  const [persistResult, setPersistResult] = useState(null);
+
+  const persistSnapshot = async () => {
+    if (!canPersistGraph || persisting) return;
+    setPersisting(true);
+    const result = await persistGraphSnapshot({
+      project,
+      files,
+      entities: {
+        CodeRelation: optionalEntity('CodeRelation'),
+        CodeSymbol: optionalEntity('CodeSymbol'),
+      },
+    });
+    setPersistResult(result);
+    setPersisting(false);
+  };
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-5">
@@ -26,6 +45,12 @@ export default function GraphSnapshotCard({ project, files = [] }) {
           <GraphPersistenceStatusBadges className="mt-2" />
         </div>
         <div className="flex flex-wrap gap-2">
+          {canPersistGraph && (
+            <Button variant="outline" size="sm" className="gap-1.5 cursor-pointer" onClick={persistSnapshot} disabled={persisting}>
+              {persisting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Database className="w-3.5 h-3.5" />}
+              {persisting ? 'Saving' : 'Save snapshot'}
+            </Button>
+          )}
           <Button variant="outline" size="sm" className="gap-1.5 cursor-pointer" onClick={() => downloadJsonReport(project?.name || 'project', 'graph-snapshot', snapshot)}>
             <Download className="w-3.5 h-3.5" /> Export JSON
           </Button>
@@ -34,6 +59,12 @@ export default function GraphSnapshotCard({ project, files = [] }) {
           </Button>
         </div>
       </div>
+
+      {persistResult && (
+        <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+          Snapshot persistence attempted. Detailed saved-count summary will be shown in the next persistence result step.
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-4">
         <div className="rounded-lg bg-slate-50 border border-slate-100 p-3">
