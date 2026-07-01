@@ -3,6 +3,16 @@ import { persistCodeRelationsIfAvailable } from "@/lib/codeRelationPersistence";
 import { resolveQueuedFilesFromPublicGitHub } from "@/lib/focusedGithubResolve";
 import { appendFocusedResolveMetadata, buildFocusedResolveRecord } from "@/lib/importMetadataUtils";
 
+/**
+ * @param {{
+ *   project?: any;
+ *   projectId?: string;
+ *   files?: any[];
+ *   queue?: any[];
+ *   resolvedQueue?: any[];
+ *   storedPathSet?: Set<string>;
+ * }} params
+ */
 export async function runFocusedResolveWorkflow({
   project,
   projectId,
