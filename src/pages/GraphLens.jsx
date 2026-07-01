@@ -9,6 +9,15 @@ import { base44 } from "@/api/base44Client";
 import { buildCodeRelations } from "@/lib/codeGraphUtils";
 import { extractProjectSymbols } from "@/lib/symbolExtractionUtils";
 import { buildGraphLensData, connectedNodeIds, filterGraphLens, relationEvidenceForNode } from "@/lib/graphLensUtils";
+import { optionalEntity } from "@/lib/impactAnalysisRuntimeUtils";
+import { mergePrInboxItems, readLocalPrInbox } from "@/lib/prInboxStorage";
+import {
+  filterPrAnalysisItems,
+  overlayTextFromPrAnalysis,
+  prAnalysisKey,
+  summarizePrAnalysisForOverlay,
+  verdictFromPrAnalysis,
+} from "@/lib/prAnalysisOverlayUtils";
 
 const PRIMARY_KINDS = ["page", "component", "backend", "utility", "config", "test", "data", "integration", "external"];
 const VERDICTS = ["SAFE", "REVIEW", "BLOCK"];
@@ -277,17 +286,45 @@ function SelectedNodePanel({ graph, selectedId, symbols }) {
   );
 }
 
-function PrOverlayPanel({ overlayInput, setOverlayInput, overlayVerdict, setOverlayVerdict, changedFiles, relatedFiles, missingFiles }) {
+function PrOverlayPanel({ overlayInput, setOverlayInput, overlayVerdict, setOverlayVerdict, changedFiles, relatedFiles, missingFiles, prItems, selectedPrItemKey, onSelectPrItem, loadingPrItems }) {
   const hasOverlay = changedFiles.length > 0;
+  const selectedSummary = useMemo(() => {
+    const selected = prItems.find((item) => prAnalysisKey(item) === selectedPrItemKey);
+    return selected ? summarizePrAnalysisForOverlay(selected) : null;
+  }, [prItems, selectedPrItemKey]);
+
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="font-semibold text-slate-900 flex items-center gap-2"><GitBranch className="w-4 h-4" />PR impact overlay</h2>
-          <p className="text-sm text-slate-500 mt-1">Paste changed file paths or a unified diff. Graph Lens will highlight changed and directly related files.</p>
+          <p className="text-sm text-slate-500 mt-1">Load a saved PR Inbox analysis or paste changed paths/diff manually.</p>
         </div>
         <Badge className={verdictClasses(overlayVerdict)}>{overlayVerdict}</Badge>
       </div>
+
+      <label className="block text-sm text-slate-600 space-y-1">
+        <span>Saved PR analysis</span>
+        <select
+          value={selectedPrItemKey}
+          onChange={(event) => onSelectPrItem(event.target.value)}
+          disabled={loadingPrItems || prItems.length === 0}
+          className="w-full h-10 rounded-md border border-slate-200 px-3 text-sm bg-white"
+        >
+          <option value="">{loadingPrItems ? "Loading saved PR analyses..." : prItems.length ? "Manual paste / no saved PR selected" : "No saved PR analyses yet"}</option>
+          {prItems.map((item) => {
+            const summary = summarizePrAnalysisForOverlay(item);
+            return <option key={summary.key} value={summary.key}>{summary.label} · {summary.verdict} · {summary.title}</option>;
+          })}
+        </select>
+      </label>
+
+      {selectedSummary && (
+        <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">
+          Loaded from PR Inbox: {selectedSummary.label} · {selectedSummary.risk} risk · {selectedSummary.changedFiles || changedFiles.length} changed files
+          {selectedSummary.url && <a href={selectedSummary.url} target="_blank" rel="noreferrer" className="block underline mt-1">Open PR</a>}
+        </div>
+      )}
 
       <div className="grid grid-cols-3 gap-2 text-center">
         <div className="rounded-lg bg-orange-50 border border-orange-200 p-3">
@@ -320,7 +357,7 @@ function PrOverlayPanel({ overlayInput, setOverlayInput, overlayVerdict, setOver
 
       <div className="flex gap-2">
         <Button variant="outline" size="sm" onClick={() => setOverlayInput("src/pages/GraphLens.jsx\nsrc/lib/graphLensUtils.js")} className="cursor-pointer">Use sample</Button>
-        <Button variant="outline" size="sm" onClick={() => setOverlayInput("")} className="cursor-pointer">Clear overlay</Button>
+        <Button variant="outline" size="sm" onClick={() => { setOverlayInput(""); onSelectPrItem(""); }} className="cursor-pointer">Clear overlay</Button>
       </div>
 
       {hasOverlay ? (
@@ -339,7 +376,7 @@ function PrOverlayPanel({ overlayInput, setOverlayInput, overlayVerdict, setOver
         </div>
       ) : (
         <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 text-xs text-slate-500">
-          No PR overlay is active yet. Paste changed files to preview blast radius before merge.
+          No PR overlay is active yet. Select a saved PR analysis or paste changed files to preview blast radius before merge.
         </div>
       )}
     </div>
@@ -350,23 +387,43 @@ export default function GraphLens() {
   const { id } = useParams();
   const [project, setProject] = useState(null);
   const [files, setFiles] = useState([]);
+  const [prItems, setPrItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingPrItems, setLoadingPrItems] = useState(true);
   const [search, setSearch] = useState("");
   const [enabledKinds, setEnabledKinds] = useState([]);
   const [selectedId, setSelectedId] = useState("");
-  const [overlayInput, setOverlayInput] = useState("");
+  const [overlayInput, setOverlayInputState] = useState("");
   const [overlayVerdict, setOverlayVerdict] = useState("REVIEW");
+  const [selectedPrItemKey, setSelectedPrItemKey] = useState("");
+
+  const setOverlayInput = (value) => {
+    setOverlayInputState(value);
+    if (selectedPrItemKey) setSelectedPrItemKey("");
+  };
 
   useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setLoadingPrItems(true);
+    const analysisEntity = optionalEntity("CodebaseAnalysis");
     Promise.all([
       base44.entities.CodebaseProject.filter({ id }),
       base44.entities.CodeFile.filter({ project_id: id }),
+      analysisEntity?.filter ? analysisEntity.filter({ project_id: id }, "created_date", 80).catch(() => []) : Promise.resolve([]),
     ])
-      .then(([projects, storedFiles]) => {
+      .then(([projects, storedFiles, remoteItems]) => {
+        if (cancelled) return;
         setProject(projects?.[0] || null);
         setFiles(storedFiles || []);
+        setPrItems(filterPrAnalysisItems(mergePrInboxItems(remoteItems || [], readLocalPrInbox(id))));
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (cancelled) return;
+        setLoading(false);
+        setLoadingPrItems(false);
+      });
+    return () => { cancelled = true; };
   }, [id]);
 
   const relations = useMemo(() => buildCodeRelations(files), [files]);
@@ -399,6 +456,15 @@ export default function GraphLens() {
     setEnabledKinds((current) => current.includes(kind) ? current.filter((item) => item !== kind) : [...current, kind]);
   };
 
+  const selectPrItem = (key) => {
+    setSelectedPrItemKey(key);
+    if (!key) return;
+    const item = prItems.find((candidate) => prAnalysisKey(candidate) === key);
+    if (!item) return;
+    setOverlayInputState(overlayTextFromPrAnalysis(item));
+    setOverlayVerdict(verdictFromPrAnalysis(item));
+  };
+
   if (loading) {
     return <div className="flex items-center justify-center py-20"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /></div>;
   }
@@ -423,6 +489,7 @@ export default function GraphLens() {
           </div>
           <div className="flex gap-2 flex-wrap">
             {overlayChangedFiles.length > 0 && <Badge className={verdictClasses(overlayVerdict)}>Overlay {overlayVerdict}</Badge>}
+            <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200">{prItems.length} saved PRs</Badge>
             <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200">{graph.stats.files}/{graph.stats.totalFiles} files</Badge>
             <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200">{graph.stats.relations}/{graph.stats.totalRelations} relations</Badge>
             <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200">{graph.stats.symbols} symbols</Badge>
@@ -490,6 +557,10 @@ export default function GraphLens() {
             changedFiles={overlayChangedFiles}
             relatedFiles={overlayRelatedFiles}
             missingFiles={overlayMissingFiles}
+            prItems={prItems}
+            selectedPrItemKey={selectedPrItemKey}
+            onSelectPrItem={selectPrItem}
+            loadingPrItems={loadingPrItems}
           />
 
           <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-3">
