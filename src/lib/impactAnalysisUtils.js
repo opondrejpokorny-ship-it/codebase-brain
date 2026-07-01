@@ -222,6 +222,13 @@ export function calibrateImpactAnalysisOutput({ text = "", heuristicRisk = "medi
   if (riskLevel !== declaredRisk && declaredRisk) {
     calibrated = replaceMarkdownSection(calibrated, "Risk level", riskLevel.charAt(0).toUpperCase() + riskLevel.slice(1));
   }
+  if (simpleLowRiskDiff && riskLevel === "low") {
+    calibrated = replaceMarkdownSection(
+      calibrated,
+      "Safe to merge?",
+      "Yes, safe to merge after the recommended lightweight UI/manual check. No blocking risk signals were detected; unresolved imports should be reviewed separately only if they are part of the intended change."
+    );
+  }
   if (!confirmedRelated && /none/i.test(relatedText) === false) {
     calibrated = replaceMarkdownSection(calibrated, "Related files", "None confirmed by the current graph/context sample.");
   }
