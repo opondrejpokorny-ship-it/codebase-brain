@@ -1,21 +1,29 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Brain, Loader2, ServerCog, GitBranch, FileDiff } from "lucide-react";
+import { Plus, Brain, Loader2, ServerCog, GitBranch, FileDiff, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { base44 } from "@/api/base44Client";
 import ProjectCard from "@/components/projects/ProjectCard";
 import ComingNextCard from "@/components/projects/ComingNextCard";
 import WorkspaceQualityOverview from "@/components/projects/WorkspaceQualityOverview";
+import { applyProjectQualityListControls, QUALITY_FILTERS, QUALITY_SORTS } from "@/lib/projectQualityListUtils";
 
 export default function Home() {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [qualityFilter, setQualityFilter] = useState('all');
+  const [qualitySort, setQualitySort] = useState('created_desc');
 
   useEffect(() => {
     base44.entities.CodebaseProject.list("-created_date", 50)
       .then(setProjects)
       .finally(() => setLoading(false));
   }, []);
+
+  const visibleProjectItems = useMemo(
+    () => applyProjectQualityListControls(projects, { filter: qualityFilter, sort: qualitySort }),
+    [projects, qualityFilter, qualitySort]
+  );
 
   return (
     <div className="space-y-8">
@@ -58,7 +66,35 @@ export default function Home() {
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Projects list */}
         <div className="lg:col-span-2 space-y-4">
-          <h2 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Projects</h2>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Projects</h2>
+              {!loading && projects.length > 0 && (
+                <p className="text-xs text-slate-400 mt-1">Showing {visibleProjectItems.length} of {projects.length} projects</p>
+              )}
+            </div>
+            {!loading && projects.length > 0 && (
+              <div className="flex flex-col sm:flex-row gap-2 rounded-xl border border-slate-200 bg-white p-2">
+                <div className="flex items-center gap-1.5 px-2 text-xs font-medium text-slate-500">
+                  <SlidersHorizontal className="w-3.5 h-3.5" /> Quality controls
+                </div>
+                <select
+                  value={qualityFilter}
+                  onChange={(event) => setQualityFilter(event.target.value)}
+                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-slate-300"
+                >
+                  {QUALITY_FILTERS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                </select>
+                <select
+                  value={qualitySort}
+                  onChange={(event) => setQualitySort(event.target.value)}
+                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-slate-300"
+                >
+                  {QUALITY_SORTS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                </select>
+              </div>
+            )}
+          </div>
 
           {loading ? (
             <div className="flex items-center justify-center py-20">
@@ -92,10 +128,16 @@ export default function Home() {
                 </Link>
               </div>
             </div>
+          ) : visibleProjectItems.length === 0 ? (
+            <div className="bg-white rounded-xl border border-dashed border-slate-300 p-10 text-center">
+              <h3 className="font-heading font-semibold text-slate-900 mb-1">No projects match this quality filter</h3>
+              <p className="text-sm text-slate-500 mb-4">Try a broader filter or reset to all projects.</p>
+              <Button variant="outline" onClick={() => setQualityFilter('all')} className="cursor-pointer">Show all projects</Button>
+            </div>
           ) : (
             <div className="grid sm:grid-cols-2 gap-3">
-              {projects.map((p) => (
-                <ProjectCard key={p.id} project={p} />
+              {visibleProjectItems.map((item) => (
+                <ProjectCard key={item.project.id} project={item.project} />
               ))}
             </div>
           )}
