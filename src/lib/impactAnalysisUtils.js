@@ -91,9 +91,10 @@ export function initialRiskLevel(changeInput = "", changedFiles = [], relations 
   const coreEngineSignal = signals.some((signal) => /Core context routing/.test(signal));
   const changedSet = new Set(changedFiles);
   const graphHits = relations.filter((relation) => changedSet.has(relation.from_file) || changedSet.has(relation.to_file)).length;
+  const significantFanout = changedFiles.length >= 3 && graphHits >= 6;
 
   if (highSignals.length >= 2) return "high";
-  if (coreEngineSignal || highSignals.length === 1 || signals.length >= 3 || changedFiles.length >= 12 || graphHits >= 3) return "medium";
+  if (coreEngineSignal || highSignals.length === 1 || signals.length >= 3 || changedFiles.length >= 12 || significantFanout) return "medium";
   return "low";
 }
 
@@ -204,10 +205,13 @@ export function calibrateImpactAnalysisOutput({ text = "", heuristicRisk = "medi
   const declaredRisk = (section(body, "Risk level").match(/\b(high|medium|low)\b/i)?.[1] || "").toLowerCase();
   let riskLevel = declaredRisk || heuristicRisk || "medium";
   const highSignal = signals.some((signal) => /Payment|Authentication|Database|Environment|Deletion/.test(signal));
+  const changedFiles = extractChangedFiles(changeInput);
+  const simpleLowRiskDiff = heuristicRisk === "low" && !highSignal && signals.length === 0 && changedFiles.length <= 2;
+
   if (highSignal && riskLevel === "low") riskLevel = "medium";
   if (signals.length >= 3 && riskLevel === "low") riskLevel = "medium";
+  if (simpleLowRiskDiff && riskLevel === "medium") riskLevel = "low";
 
-  const changedFiles = extractChangedFiles(changeInput);
   const relatedText = section(body, "Related files");
   const contextText = section(body, "Context files reviewed");
   const confirmedRelated = changedFiles.length ? relatedText : "";
