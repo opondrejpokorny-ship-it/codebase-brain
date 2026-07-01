@@ -1,14 +1,15 @@
 # Phase 38-50: Codebase Brain v2 roadmap
 
-This document turns the competitive research into an implementation roadmap. The goal is not to clone local MCP engines such as codebase-memory-mcp, CodeGraph, Gortex, Octocode, Qartez, Reporecall, or Graphify. The product direction is to make Codebase Brain the web/product layer above codebase memory: PR review, context packs, project decisions, risk memory, architecture lens, and eventually MCP access.
+This document turns the competitive research into an implementation roadmap. The goal is not to clone local MCP engines such as codebase-memory-mcp, CodeGraph, Gortex, Octocode, Qartez, Reporecall, or Graphify. The product direction is to make Codebase Brain the web/product layer above codebase memory: PR review, context packs, project decisions, risk memory, architecture lens, graph lens, and eventually MCP access.
 
 ## Product position
 
 Codebase Brain should be useful even before a full local parser exists:
 
 - import a repository or pasted code sample,
-- build deterministic file, relation, symbol, product-area, and risk facts,
+- build deterministic file, relation, symbol, product-area, graph, and risk facts,
 - show what context is complete or missing,
+- visualize the codebase shape and direct impact radius,
 - review diffs and PRs against that context,
 - remember decisions and prior risks,
 - export the context for coding agents,
@@ -36,6 +37,10 @@ The impact analysis prompt and calibrator now support an explicit review verdict
 
 The architecture lens now has a product-context utility available through `src/lib/productContextUtils.js`. This lets the architecture page talk in product areas, not only folders and files.
 
+### 5b. Graph Lens v1
+
+Added `src/lib/graphLensUtils.js` and `src/pages/GraphLens.jsx`, exposed at `/project/:id/graph`. This is a practical 2D SVG graph lens before the heavier 3D/WebGL phase. It shows folders, files, internal import relations, external packages, node type colors, node size by fanout/symbol density, filters, search, clickable node detail, symbol chips, relation evidence, and a first direct-impact-radius highlight.
+
 ### 6. GitHub App private import
 
 The repo already has the safe GitHub App skeleton, private import readiness, repository link metadata, and dry-run installation token helper. The next production step remains backend-only non-dry-run installation token creation behind feature flags.
@@ -58,20 +63,22 @@ Added `src/lib/mcpLiteTools.js` with a tool manifest and config-snippet generato
 
 ## Current implementation status
 
-- Product surfaces added: Search Codebase, Architecture, Decisions, MCP Setup, Risk Memory, Project Rules.
-- Foundations added: graph persistence helpers, product-context helpers, decision memory helpers, freshness helpers, MCP Lite manifest, verdict calibration.
-- Still intentionally deferred: running MCP server, backend-only private import token creation, queued webhook PR analysis, persisted Base44 entities for graph/decisions/context packs, and local tree-sitter/LSP engine.
+- Product surfaces added: Search Codebase, Architecture, Graph Lens, Decisions, MCP Setup, Risk Memory, Project Rules.
+- Foundations added: graph persistence helpers, graph lens data builder, product-context helpers, decision memory helpers, freshness helpers, MCP Lite manifest, verdict calibration.
+- Still intentionally deferred: running MCP server, backend-only private import token creation, queued webhook PR analysis, persisted Base44 entities for graph/decisions/context packs, local tree-sitter/LSP engine, and 3D/WebGL graph mode.
 
 ## Remaining implementation order
 
 1. Add optional Base44 entities: `CodeRelation`, `CodeSymbol`, `DecisionMemory`, `ContextPack`, `CodebaseAnalysis`.
 2. Wire `graphPersistenceUtils.persistGraphSnapshot()` into repository import and manual rebuild flows.
 3. Add context freshness banners using `freshnessUtils`.
-4. Add queued PR analysis from webhook deliveries without posting GitHub comments.
-5. Add read-only private repo import behind `GITHUB_PRIVATE_IMPORT_ENABLED`.
-6. Promote verdicts into the PR Inbox and Risk Memory views.
-7. Add architecture/report exports: `architecture-report.md`, `context-pack.json`, `risk-report.md`.
-8. Only after the product layer is stable, evaluate a bridge to a local engine or tree-sitter worker.
+4. Add PR impact overlay mode to Graph Lens: changed files, related files, missing context, and SAFE / REVIEW / BLOCK verdict.
+5. Add queued PR analysis from webhook deliveries without posting GitHub comments.
+6. Add read-only private repo import behind `GITHUB_PRIVATE_IMPORT_ENABLED`.
+7. Promote verdicts into the PR Inbox and Risk Memory views.
+8. Add architecture/report exports: `architecture-report.md`, `context-pack.json`, `risk-report.md`.
+9. Add Graph Lens v3 3D View after persistent graph storage is stable.
+10. Only after the product layer is stable, evaluate a bridge to a local engine or tree-sitter worker.
 
 ## Safety principles
 
