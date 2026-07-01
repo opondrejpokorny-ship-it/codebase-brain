@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { GitBranch, FileCode, ArrowRight } from "lucide-react";
+import { GitBranch, ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 const statusStyles = {
