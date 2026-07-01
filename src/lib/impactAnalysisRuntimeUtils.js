@@ -1,5 +1,6 @@
 import { base44 } from "@/api/base44Client";
 import { fetchPublicGithubPrDiffClient } from "@/lib/githubPrUtils";
+export { optionalEntity } from "@/lib/optionalEntityRuntime";
 
 export const exampleImpactDiff = `diff --git a/src/lib/contextPackBuilder.js b/src/lib/contextPackBuilder.js
 --- a/src/lib/contextPackBuilder.js
@@ -11,14 +12,6 @@ export const exampleImpactDiff = `diff --git a/src/lib/contextPackBuilder.js b/s
  }
 
 src/pages/ImpactAnalysis.jsx`;
-
-export function optionalEntity(entityName) {
-  try {
-    return base44?.entities?.[entityName] || null;
-  } catch {
-    return null;
-  }
-}
 
 export function fallbackProjectFromFiles(projectId, storedFiles = []) {
   if (!storedFiles.length) return null;
