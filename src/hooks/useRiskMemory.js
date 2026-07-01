@@ -5,6 +5,8 @@ import {
   mergeAnalysisHistories,
   readLocalAnalysisHistory,
 } from "@/lib/analysisHistoryUtils";
+import { extractChangedFiles } from "@/lib/impactAnalysisUtils";
+import { detectChangedSymbols } from "@/lib/changedSymbolUtils";
 
 function optionalEntity(entityName) {
   try {
@@ -12,6 +14,18 @@ function optionalEntity(entityName) {
   } catch {
     return null;
   }
+}
+
+function backfillChangedSymbols(analyses = [], files = []) {
+  if (!files.length) return analyses;
+  return analyses.map((analysis) => {
+    if (Array.isArray(analysis.changed_symbols) && analysis.changed_symbols.length > 0) return analysis;
+    const input = analysis.input || "";
+    if (!input) return analysis;
+    const changedFiles = analysis.changed_files?.length ? analysis.changed_files : extractChangedFiles(input);
+    const changedSymbols = detectChangedSymbols({ files, changedFiles, diffText: input });
+    return changedSymbols.length ? { ...analysis, changed_symbols: changedSymbols, symbol_backfilled: true } : analysis;
+  });
 }
 
 export function useRiskMemory(projectId) {
@@ -26,8 +40,9 @@ export function useRiskMemory(projectId) {
     async function loadRiskMemory() {
       setLoading(true);
       try {
-        const [projects] = await Promise.all([
+        const [projects, files] = await Promise.all([
           base44.entities.CodebaseProject.filter({ id: projectId }).catch(() => []),
+          base44.entities.CodeFile.filter({ project_id: projectId }).catch(() => []),
         ]);
 
         const analysisEntity = optionalEntity("CodebaseAnalysis");
@@ -36,10 +51,11 @@ export function useRiskMemory(projectId) {
           : [];
         const localAnalyses = readLocalAnalysisHistory(projectId);
         const merged = mergeAnalysisHistories(remoteAnalyses || [], localAnalyses || []);
+        const enriched = backfillChangedSymbols(merged, files || []);
 
         if (!cancelled) {
           setProject(projects?.[0] || null);
-          setAnalyses(merged);
+          setAnalyses(enriched);
           setHistorySource(remoteAnalyses?.length ? "Base44 + local fallback" : "local fallback");
         }
       } finally {
