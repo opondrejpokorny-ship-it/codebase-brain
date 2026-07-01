@@ -1,4 +1,5 @@
 import { estimateTokensFromText } from "@/lib/tokenBudgetUtils";
+import { extractSymbolsFromFile } from "@/lib/codeSymbolUtils";
 
 export const CONTEXT_DEPTH_PRESETS = {
   minimal: { maxTokens: 6000, minPositiveFiles: 2, label: "Minimal" },
@@ -48,11 +49,26 @@ export function relationReason(relations = [], filePath = "", changedFiles = [])
   return null;
 }
 
+function symbolMatchesQuery(symbols = [], questionWords = [], question = "", diffText = "") {
+  const haystack = normalizeForScoring(`${question}\n${diffText}`);
+  const matches = [];
+  for (const symbol of symbols) {
+    const name = normalizeForScoring(symbol.name);
+    if (!name) continue;
+    const direct = haystack.includes(name);
+    const wordHit = questionWords.some((word) => name.includes(word) || word.includes(name));
+    if (direct || wordHit) matches.push(symbol);
+  }
+  return matches.slice(0, 4);
+}
+
 export function scoreContextFile({ file, questionWords = [], question = "", diffText = "", changedFiles = [], relatedPaths = [], relations = [] }) {
   const path = file.path || "";
   const content = file.content || "";
   const normalizedPath = normalizeForScoring(path);
   const normalizedContent = normalizeForScoring(content.slice(0, 12000));
+  const symbols = extractSymbolsFromFile(file);
+  const matchingSymbols = symbolMatchesQuery(symbols, questionWords, question, diffText);
   const reasons = [];
   let score = 0;
 
@@ -69,6 +85,11 @@ export function scoreContextFile({ file, questionWords = [], question = "", diff
   if (normalizeForScoring(question).includes(normalizedPath) || normalizeForScoring(diffText).includes(normalizedPath)) {
     score += 80;
     reasons.push("Selected because the path is mentioned in the question or diff.");
+  }
+
+  if (matchingSymbols.length) {
+    score += 45 + Math.min(30, matchingSymbols.length * 8);
+    reasons.push(`Selected because symbols match the request: ${matchingSymbols.map((symbol) => symbol.name).join(", ")}.`);
   }
 
   for (const word of questionWords) {
@@ -101,6 +122,7 @@ export function scoreContextFile({ file, questionWords = [], question = "", diff
     score,
     reasons: [...new Set(reasons)].slice(0, 4),
     estimatedTokens,
+    symbols,
   };
 }
 
