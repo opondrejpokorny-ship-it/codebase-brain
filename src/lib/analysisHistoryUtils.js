@@ -97,26 +97,35 @@ export function mergeAnalysisHistories(...groups) {
     .sort((a, b) => historyTime(b.created_date) - historyTime(a.created_date));
 }
 
-export function createAnalysisHistoryRecord({
-  projectId,
-  type,
-  input,
-  result,
-  riskLevel,
-  changedFiles,
-  relatedFiles,
-  riskSignals,
-  relevantFiles,
-  relevantRelations,
-  contextPack,
-  repositoryCompatibility,
-  prMetadata,
-}) {
+export function createAnalysisHistoryRecord(input = {}) {
+  const {
+    projectId,
+    type,
+    input: rawInput,
+    result,
+    riskLevel,
+    changedFiles,
+    relatedFiles,
+    riskSignals,
+    relevantFiles,
+    relevantRelations,
+    contextPack,
+    contextDepth,
+    contextDepthPreset,
+    contextSelectedTokens,
+    contextFullRepoTokens,
+    contextSavingsPercent,
+    repositoryCompatibility,
+    prMetadata,
+  } = /** @type {any} */ (input);
   const efficiency = contextPack?.efficiency || {};
+  const selectedTokens = contextSelectedTokens || efficiency.selectedTokens || 0;
+  const fullRepoTokens = contextFullRepoTokens || efficiency.fullRepoTokens || 0;
+  const savingsPercent = contextSavingsPercent || efficiency.savingsPercent || 0;
   return {
     project_id: projectId,
     type: type || "manual_diff_impact",
-    input: String(input || ""),
+    input: String(rawInput || ""),
     result: String(result || ""),
     risk_level: riskLevel || "medium",
     risk_calibration_version: CURRENT_RISK_CALIBRATION_VERSION,
@@ -127,10 +136,15 @@ export function createAnalysisHistoryRecord({
     relevant_relations: normalizeList(relevantRelations),
     repository_compatibility: repositoryCompatibility || null,
     pr_metadata: prMetadata || null,
-    selected_tokens: efficiency.selectedTokens || 0,
-    full_repo_tokens: efficiency.fullRepoTokens || 0,
+    context_depth: contextDepth || contextPack?.depth || "balanced",
+    context_depth_preset: contextDepthPreset || contextPack?.depthPreset || "Balanced",
+    context_selected_tokens: selectedTokens,
+    context_full_repo_tokens: fullRepoTokens,
+    context_savings_percent: savingsPercent,
+    selected_tokens: selectedTokens,
+    full_repo_tokens: fullRepoTokens,
     saved_tokens: efficiency.savedTokens || 0,
-    savings_percent: efficiency.savingsPercent || 0,
+    savings_percent: savingsPercent,
     recommended_tests: sectionLines(result, "Recommended tests", 12),
     regression_checklist: sectionLines(result, "Regression checklist", 12),
     created_date: new Date().toISOString(),
