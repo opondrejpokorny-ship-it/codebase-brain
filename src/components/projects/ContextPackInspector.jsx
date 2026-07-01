@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, ClipboardCopy, PackageSearch, TriangleAlert } from "lucide-react";
+import { Check, ClipboardCopy, Download, PackageSearch, TriangleAlert } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ import {
   addPersistentMissingContextQueueItems,
   clearPersistentMissingContextQueue,
 } from "@/lib/persistentMissingContextQueue";
+import { downloadJsonReport } from "@/lib/reportDownloadUtils";
 import { formatEstimatedTokens } from "@/lib/tokenBudgetUtils";
 
 function buildCurrentMissingImportInstructions({ project, currentMissingTargets = [] }) {
@@ -54,6 +55,43 @@ function buildResolveMissingContextPayload({ projectId, project, currentMissingT
       rebuild_code_graph: true,
       clear_resolved_queue_items: true,
     },
+  };
+}
+
+function buildContextPackExportPayload({ contextPack, selectedFiles, selectedRelations, changedFiles, projectId, project, coverage, efficiency, currentMissingTargets }) {
+  return {
+    schema_version: "context-pack-export-v1",
+    exported_at: new Date().toISOString(),
+    project: {
+      id: projectId || project?.id || null,
+      name: project?.name || null,
+      repository_url: project?.repository_url || null,
+      detected_stack: project?.detected_stack || [],
+    },
+    context: {
+      depth: contextPack.depth || null,
+      depth_preset: contextPack.depthPreset || null,
+      max_tokens: contextPack.maxTokens || null,
+      estimated_tokens: contextPack.estimatedTokens || 0,
+      project_summary: contextPack.projectSummary || "",
+      warnings: contextPack.warnings || [],
+      efficiency,
+      coverage,
+    },
+    changed_files: changedFiles || [],
+    selected_file_paths: selectedFiles.map((file) => file.path).filter(Boolean),
+    selected_files: selectedFiles.map((file) => ({
+      id: file.id || null,
+      path: file.path,
+      language: file.language || null,
+      size_bytes: file.size_bytes || file.size || null,
+      reasons: contextPack.reasons?.[file.path] || [],
+      relevance_score: contextPack.relevanceScores?.[file.path] ?? null,
+      content: file.content || "",
+    })),
+    selected_relations: selectedRelations,
+    graph_summary: contextPack.graphSummary || {},
+    missing_context_targets: currentMissingTargets,
   };
 }
 
@@ -123,6 +161,11 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
     } catch {
       setCopied(false);
     }
+  };
+
+  const handleExportJson = () => {
+    const payload = buildContextPackExportPayload({ contextPack, selectedFiles, selectedRelations, changedFiles, projectId, project, coverage, efficiency, currentMissingTargets });
+    downloadJsonReport(project?.name || "project", "context-pack", payload);
   };
 
   const handleCopyMissingPaths = async () => {
@@ -219,10 +262,16 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
             <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200">{selectedFiles.length} files</Badge>
             <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">{depthLabel} context</Badge>
           </div>
-          <Button type="button" variant="outline" size="sm" onClick={handleCopy} className="h-8 gap-1.5 cursor-pointer text-xs">
-            {copied ? <Check className="w-3.5 h-3.5" /> : <ClipboardCopy className="w-3.5 h-3.5" />}
-            {copied ? "Copied" : "Copy summary"}
-          </Button>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={handleCopy} className="h-8 gap-1.5 cursor-pointer text-xs">
+              {copied ? <Check className="w-3.5 h-3.5" /> : <ClipboardCopy className="w-3.5 h-3.5" />}
+              {copied ? "Copied" : "Copy summary"}
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={handleExportJson} className="h-8 gap-1.5 cursor-pointer text-xs">
+              <Download className="w-3.5 h-3.5" />
+              Export JSON
+            </Button>
+          </div>
         </div>
       </div>
 
