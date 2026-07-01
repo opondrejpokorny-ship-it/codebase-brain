@@ -16,7 +16,7 @@ import {
   uniqueMissingPathGuesses,
   uniqueRelations,
 } from "@/lib/contextPackInspectorUtils";
-import { formatMissingContextQueue, readMissingContextQueueForProject } from "@/lib/missingContextQueueUtils";
+import { formatMissingContextImportPrompt, formatMissingContextQueue, readMissingContextQueueForProject } from "@/lib/missingContextQueueUtils";
 import {
   addPersistentMissingContextQueueItems,
   clearPersistentMissingContextQueue,
@@ -26,6 +26,7 @@ import { formatEstimatedTokens } from "@/lib/tokenBudgetUtils";
 export default function ContextPackInspector({ contextPack, changedFiles = [], projectId = null, project = null }) {
   const [copied, setCopied] = useState(false);
   const [copiedPaths, setCopiedPaths] = useState(false);
+  const [copiedImportInstructions, setCopiedImportInstructions] = useState(false);
   const [copiedQueue, setCopiedQueue] = useState(false);
   const [queued, setQueued] = useState(false);
   const [queuedTargets, setQueuedTargets] = useState(() => readMissingContextQueueForProject(projectId, project));
@@ -34,6 +35,7 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
     setQueuedTargets(readMissingContextQueueForProject(projectId, project));
     setQueued(false);
     setCopiedQueue(false);
+    setCopiedImportInstructions(false);
   }, [projectId, project]);
 
   if (!contextPack) return null;
@@ -85,6 +87,18 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
       window.setTimeout(() => setCopiedPaths(false), 1600);
     } catch {
       setCopiedPaths(false);
+    }
+  };
+
+  const handleCopyImportInstructions = async () => {
+    const queue = currentMissingTargets.map((target) => ({ target }));
+    const text = formatMissingContextImportPrompt({ projectName: project?.name || "this project", repositoryUrl: project?.repository_url || "", queue });
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedImportInstructions(true);
+      window.setTimeout(() => setCopiedImportInstructions(false), 1600);
+    } catch {
+      setCopiedImportInstructions(false);
     }
   };
 
@@ -151,6 +165,8 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
         queuedOtherTargets={queuedOtherTargets}
         onCopyPaths={handleCopyMissingPaths}
         copiedPaths={copiedPaths}
+        onCopyImportInstructions={handleCopyImportInstructions}
+        copiedImportInstructions={copiedImportInstructions}
         onAddToQueue={handleAddToQueue}
         queued={queueButtonActive}
         queuedTargets={queuedTargets}
