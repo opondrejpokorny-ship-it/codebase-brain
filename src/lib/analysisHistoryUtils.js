@@ -37,6 +37,11 @@ function normalizeChangedSymbols(value) {
     .filter((symbol) => symbol.name && symbol.path);
 }
 
+function symbolMemoryName(symbol = {}) {
+  const type = symbol.type ? ` ${symbol.type}` : "";
+  return `${symbol.name}${type} · ${symbol.path}`;
+}
+
 function escapeRegExp(value = "") {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -185,6 +190,7 @@ export function buildRiskMemory(analyses = []) {
   const highRiskFiles = new Map();
   const legacyHighRiskFiles = new Map();
   const changedFiles = new Map();
+  const changedSymbols = new Map();
   const relatedFiles = new Map();
   const riskSignals = new Map();
   const recommendedTests = new Map();
@@ -208,6 +214,7 @@ export function buildRiskMemory(analyses = []) {
       if (risk === "high" && calibrated) increment(highRiskFiles, file);
       if (risk === "high" && !calibrated) increment(legacyHighRiskFiles, file);
     }
+    for (const symbol of normalizeChangedSymbols(analysis.changed_symbols)) increment(changedSymbols, symbolMemoryName(symbol));
     for (const file of normalizeList(analysis.related_files)) increment(relatedFiles, file);
     for (const signal of normalizeList(analysis.risk_signals)) increment(riskSignals, signal);
     for (const test of normalizeList(analysis.recommended_tests || sectionLines(analysis.result, "Recommended tests", 8))) increment(recommendedTests, test);
@@ -224,6 +231,7 @@ export function buildRiskMemory(analyses = []) {
     highRiskFiles: sortedCounts(highRiskFiles, 8),
     legacyHighRiskFiles: sortedCounts(legacyHighRiskFiles, 8),
     frequentlyChangedFiles: sortedCounts(changedFiles, 10),
+    frequentlyChangedSymbols: sortedCounts(changedSymbols, 10),
     frequentlyRelatedFiles: sortedCounts(relatedFiles, 10),
     repeatedRiskSignals: sortedCounts(riskSignals, 10),
     commonRecommendedTests: sortedCounts(recommendedTests, 8),
@@ -258,6 +266,8 @@ All-time risk distribution: high ${memory.riskCounts.high}, medium ${memory.risk
 Current-calibration risk distribution: high ${memory.calibratedRiskCounts.high}, medium ${memory.calibratedRiskCounts.medium}, low ${memory.calibratedRiskCounts.low}
 Relevant frequently changed files:
 ${formatCountList(matchingChangedFiles)}
+Frequently changed symbols:
+${formatCountList(memory.frequentlyChangedSymbols.slice(0, 8))}
 Relevant calibrated high-risk files:
 ${formatCountList(matchingHighRiskFiles)}
 Relevant legacy high-risk files, lower confidence:
