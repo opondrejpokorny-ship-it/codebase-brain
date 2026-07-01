@@ -7,6 +7,7 @@ import ProjectCard from "@/components/projects/ProjectCard";
 import ComingNextCard from "@/components/projects/ComingNextCard";
 import WorkspaceQualityOverview from "@/components/projects/WorkspaceQualityOverview";
 import WorkspaceOnboardingChecklist from "@/components/projects/WorkspaceOnboardingChecklist";
+import WorkspaceOptionsSummary from "@/components/projects/WorkspaceOptionsSummary";
 import { buildProductQualityReport } from "@/lib/productQualityUtils";
 import { readHomePreference, writeHomePreference } from "@/lib/homePreferenceUtils";
 
@@ -184,6 +185,7 @@ export default function Home() {
 
         {/* Sidebar */}
         <div className="space-y-4">
+          {!loading && <WorkspaceOptionsSummary />}
           {!loading && <WorkspaceOnboardingChecklist projects={projects} />}
           {!loading && <WorkspaceQualityOverview projects={projects} />}
           <h2 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Roadmap</h2>
