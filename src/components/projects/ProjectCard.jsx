@@ -1,6 +1,8 @@
 import { Link } from "react-router-dom";
-import { GitBranch, ArrowRight } from "lucide-react";
+import { GitBranch, ArrowRight, Activity, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { buildProductQualityReport, scoreToneClasses } from "@/lib/productQualityUtils";
+import { primaryQualityAction } from "@/lib/productQualityActionUtils";
 
 const statusStyles = {
   draft: "bg-amber-50 text-amber-700 border-amber-200",
@@ -9,6 +11,9 @@ const statusStyles = {
 };
 
 export default function ProjectCard({ project }) {
+  const report = buildProductQualityReport({ project });
+  const action = primaryQualityAction(report.priorities, project.id);
+
   return (
     <Link
       to={`/project/${project.id}`}
@@ -27,6 +32,27 @@ export default function ProjectCard({ project }) {
         <Badge variant="outline" className={statusStyles[project.status] || statusStyles.draft}>
           {project.status}
         </Badge>
+      </div>
+
+      <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <Activity className="w-4 h-4 text-slate-500 flex-shrink-0" />
+            <div className="min-w-0">
+              <div className="text-xs uppercase tracking-wider text-slate-400">Quality</div>
+              <div className="text-sm font-medium text-slate-900 truncate">{report.tier.label}</div>
+            </div>
+          </div>
+          <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${scoreToneClasses(report.tier.tone)}`}>
+            {report.overall}%
+          </span>
+        </div>
+        {action && (
+          <div className="mt-2 flex items-start gap-1.5 text-xs text-slate-500">
+            <Zap className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+            <span className="line-clamp-2">Next: {action.title}</span>
+          </div>
+        )}
       </div>
 
       {project.detected_stack?.length > 0 && (
