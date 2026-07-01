@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
-import { Activity, ArrowLeft, CheckCircle, Clock3, ShieldCheck, Wrench } from 'lucide-react';
+import { Activity, ArrowLeft, CheckCircle, Clock3, Route, ShieldCheck, Wrench } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PRODUCT_HEALTH_SECTIONS, healthToneClasses, summarizeProductHealth } from '@/lib/productHealthUtils';
+import { navigationAuditRows, workspaceRoute } from '@/lib/navigationMapUtils';
 
 const iconByStatus = {
   ready: CheckCircle,
@@ -22,11 +23,12 @@ function MetricCard({ label, value }) {
 
 export default function ProductHealth() {
   const summary = summarizeProductHealth();
+  const routeRows = navigationAuditRows();
 
   return (
     <div className="space-y-6">
       <div>
-        <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 mb-3">
+        <Link to={workspaceRoute('home')} className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 mb-3">
           <ArrowLeft className="w-3.5 h-3.5" /> Dashboard
         </Link>
         <h1 className="font-heading text-2xl font-bold text-slate-900 flex items-center gap-2">
@@ -64,12 +66,27 @@ export default function ProductHealth() {
         ))}
       </div>
 
+      <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4">
+        <div>
+          <h2 className="font-semibold text-slate-900 flex items-center gap-2"><Route className="w-4 h-4" /> Navigation audit</h2>
+          <p className="text-sm text-slate-500 mt-1">Central route map for workspace and project-level screens.</p>
+        </div>
+        <div className="grid md:grid-cols-2 gap-2">
+          {routeRows.map((row) => (
+            <div key={`${row.scope}-${row.key}`} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="text-sm font-medium text-slate-900">{row.key}</div>
+              <div className="text-xs text-slate-500">{row.scope} · {row.href}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       <div className="rounded-xl border border-slate-200 bg-white p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div>
           <h2 className="font-semibold text-slate-900">Recommended next step</h2>
           <p className="text-sm text-slate-500 mt-1">Move from UI polish to deeper import, graph, and review intelligence.</p>
         </div>
-        <Link to="/workspace/quality">
+        <Link to={workspaceRoute('workspaceQuality')}>
           <Button variant="outline" className="cursor-pointer">Open Workspace Quality</Button>
         </Link>
       </div>
