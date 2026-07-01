@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Activity, ArrowLeft, ArrowRight, CheckCircle, Download, Loader2, ShieldAlert, SlidersHorizontal, Trash2, TrendingDown, TrendingUp } from 'lucide-react';
+import { Activity, ArrowLeft, ArrowRight, CheckCircle, Clipboard, Download, Loader2, ShieldAlert, SlidersHorizontal, Trash2, TrendingDown, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { base44 } from '@/api/base44Client';
 import { buildWorkspaceQualityOverview } from '@/lib/workspaceQualityUtils';
 import { scoreToneClasses } from '@/lib/productQualityUtils';
 import { applyWorkspaceQualityControls, WORKSPACE_QUALITY_FILTERS, WORKSPACE_QUALITY_SORTS } from '@/lib/workspaceQualityListUtils';
 import { readWorkspaceQualityPreference, writeWorkspaceQualityPreference } from '@/lib/workspaceQualityPreferenceUtils';
-import { downloadWorkspaceQualityMarkdownReport } from '@/lib/workspaceQualityReportUtils';
+import { copyWorkspaceQualityMarkdownReport, downloadWorkspaceQualityMarkdownReport } from '@/lib/workspaceQualityReportUtils';
 import { clearWorkspaceQualitySnapshots, formatSnapshotDate, listWorkspaceQualitySnapshots, saveWorkspaceQualitySnapshot, summarizeWorkspaceQualityTrend } from '@/lib/workspaceQualityTrendUtils';
 import { readWorkspaceOptions } from '@/lib/workspaceOptionsUtils';
 import { summarizeWorkspaceTarget } from '@/lib/workspaceTargetUtils';
@@ -69,6 +69,7 @@ export default function WorkspaceQuality() {
   const [qualitySort, setQualitySort] = useState(() => readWorkspaceQualityPreference('qualitySort', 'quality_asc'));
   const [snapshots, setSnapshots] = useState(() => listWorkspaceQualitySnapshots());
   const [workspaceOptions] = useState(() => readWorkspaceOptions());
+  const [copyStatus, setCopyStatus] = useState('idle');
 
   useEffect(() => {
     base44.entities.CodebaseProject.list('-created_date', 100)
@@ -100,6 +101,12 @@ export default function WorkspaceQuality() {
   function handleClearSnapshots() {
     clearWorkspaceQualitySnapshots();
     setSnapshots([]);
+  }
+
+  async function handleCopyReport() {
+    setCopyStatus('idle');
+    const copied = await copyWorkspaceQualityMarkdownReport({ overview, snapshots, options: workspaceOptions });
+    setCopyStatus(copied ? 'copied' : 'failed');
   }
 
   function handleDownloadReport() {
@@ -147,6 +154,7 @@ export default function WorkspaceQuality() {
                 <p className="text-sm text-slate-500 mt-1">Save local snapshots to track whether workspace quality is improving.</p>
               </div>
               <div className="flex flex-col sm:flex-row gap-2">
+                <Button variant="outline" onClick={handleCopyReport} className="gap-1.5 cursor-pointer"><Clipboard className="w-4 h-4" /> Copy report</Button>
                 <Button variant="outline" onClick={handleDownloadReport} className="gap-1.5 cursor-pointer"><Download className="w-4 h-4" /> Download report</Button>
                 {snapshots.length > 0 && <Button variant="outline" onClick={handleClearSnapshots} className="gap-1.5 cursor-pointer"><Trash2 className="w-4 h-4" /> Clear snapshots</Button>}
                 <Button onClick={handleSaveSnapshot} className="cursor-pointer">Save snapshot</Button>
@@ -155,6 +163,8 @@ export default function WorkspaceQuality() {
             <div className="flex flex-wrap items-center gap-2">
               <TrendBadge trend={trend} />
               <TargetBadge target={target} />
+              {copyStatus === 'copied' && <span className="text-xs text-emerald-600">Report copied to clipboard</span>}
+              {copyStatus === 'failed' && <span className="text-xs text-amber-600">Clipboard unavailable; use Download report</span>}
               {snapshots.length > 0 && <span className="text-xs text-slate-500">{snapshots.length} local snapshots saved</span>}
               {trend.previous && <span className="text-xs text-slate-500">Last saved: {formatSnapshotDate(trend.previous.created_at)} · {trend.previous.average}% average</span>}
             </div>
@@ -223,7 +233,7 @@ export default function WorkspaceQuality() {
                   onChange={(event) => setQualitySort(event.target.value)}
                   className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-slate-300"
                 >
-                  {WORKSPACE_QUALITY_SORTS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                  {WORKSPACE_QUALITY_SORTS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>) }
                 </select>
               </div>
             </div>
