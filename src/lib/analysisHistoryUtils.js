@@ -113,13 +113,15 @@ export function createAnalysisHistoryRecord(input = {}) {
     contextDepth,
     contextDepthPreset,
     contextSelectedTokens,
+    contextTotalTokens,
     contextFullRepoTokens,
     contextSavingsPercent,
     repositoryCompatibility,
     prMetadata,
   } = /** @type {any} */ (input);
   const efficiency = contextPack?.efficiency || {};
-  const selectedTokens = contextSelectedTokens || efficiency.selectedTokens || 0;
+  const selectedTokens = contextSelectedTokens || efficiency.selectedFileTokens || efficiency.selectedTokens || 0;
+  const totalTokens = contextTotalTokens || efficiency.totalContextTokens || efficiency.selectedTotalTokens || selectedTokens;
   const fullRepoTokens = contextFullRepoTokens || efficiency.fullRepoTokens || 0;
   const savingsPercent = contextSavingsPercent || efficiency.savingsPercent || 0;
   return {
@@ -139,6 +141,7 @@ export function createAnalysisHistoryRecord(input = {}) {
     context_depth: contextDepth || contextPack?.depth || "balanced",
     context_depth_preset: contextDepthPreset || contextPack?.depthPreset || "Balanced",
     context_selected_tokens: selectedTokens,
+    context_total_tokens: totalTokens,
     context_full_repo_tokens: fullRepoTokens,
     context_savings_percent: savingsPercent,
     selected_tokens: selectedTokens,
