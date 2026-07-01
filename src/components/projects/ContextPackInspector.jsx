@@ -16,12 +16,29 @@ import {
   uniqueMissingPathGuesses,
   uniqueRelations,
 } from "@/lib/contextPackInspectorUtils";
-import { formatMissingContextImportPrompt, formatMissingContextQueue, readMissingContextQueueForProject } from "@/lib/missingContextQueueUtils";
+import { formatMissingContextQueue, readMissingContextQueueForProject } from "@/lib/missingContextQueueUtils";
 import {
   addPersistentMissingContextQueueItems,
   clearPersistentMissingContextQueue,
 } from "@/lib/persistentMissingContextQueue";
 import { formatEstimatedTokens } from "@/lib/tokenBudgetUtils";
+
+function buildCurrentMissingImportInstructions({ project, currentMissingTargets = [] }) {
+  return `Import or re-index these missing context targets for ${project?.name || "this project"}.
+
+Repository: ${project?.repository_url || "not provided"}
+
+Targets:
+${currentMissingTargets.length ? currentMissingTargets.join("\n") : "None"}
+
+Instructions:
+- Prefer exact repository files matching these extensionless targets.
+- Resolve common extensions: .js, .jsx, .ts, .tsx.
+- Also check index files under matching folders.
+- Add the resolved files to the stored project context.
+- Rebuild code graph relations after import.
+- Do not import the whole repository unless explicitly requested.`;
+}
 
 export default function ContextPackInspector({ contextPack, changedFiles = [], projectId = null, project = null }) {
   const [copied, setCopied] = useState(false);
@@ -91,8 +108,7 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
   };
 
   const handleCopyImportInstructions = async () => {
-    const queue = currentMissingTargets.map((target) => ({ target }));
-    const text = formatMissingContextImportPrompt({ projectName: project?.name || "this project", repositoryUrl: project?.repository_url || "", queue });
+    const text = buildCurrentMissingImportInstructions({ project, currentMissingTargets });
     try {
       await navigator.clipboard.writeText(text);
       setCopiedImportInstructions(true);
