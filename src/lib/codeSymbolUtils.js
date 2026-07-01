@@ -29,24 +29,34 @@ function addSymbol(symbols, seen, file, match, pattern) {
   const name = match?.[1];
   if (!name) return;
   const kind = symbolKind(name, pattern.type);
-  const key = `${file.path}|${name}|${kind}|${match.index}`;
-  if (seen.has(key)) return;
-  seen.add(key);
-  symbols.push({
+  const key = `${file.path}|${name}|${kind}`;
+  const exported = Boolean(pattern.exported || /\bexport\s+(default\s+)?/.test(match[0] || ""));
+  const line = lineForIndex(file.content || "", match.index || 0);
+  const existing = seen.get(key);
+
+  if (existing) {
+    existing.exported = existing.exported || exported;
+    existing.line = Math.min(existing.line, line);
+    return;
+  }
+
+  const symbol = {
     name,
     type: kind,
     rawType: pattern.type,
     path: file.path || "",
-    exported: Boolean(pattern.exported || /\bexport\s+(default\s+)?/.test(match[0] || "")),
-    line: lineForIndex(file.content || "", match.index || 0),
-  });
+    exported,
+    line,
+  };
+  seen.set(key, symbol);
+  symbols.push(symbol);
 }
 
 export function extractSymbolsFromFile(file = {}) {
   const content = String(file.content || "");
   if (!content || content.length > 300_000) return [];
   const symbols = [];
-  const seen = new Set();
+  const seen = new Map();
 
   for (const pattern of SYMBOL_PATTERNS) {
     const regex = new RegExp(pattern.regex.source, pattern.regex.flags);
