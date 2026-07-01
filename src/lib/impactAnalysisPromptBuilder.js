@@ -87,6 +87,7 @@ Rules:
 - Mention missing context.
 - Use concrete file paths.
 - When changed symbols are available, describe the likely impact at symbol level.
+- In the "Risk memory influence" section, explicitly mention any relevant frequently changed symbols from Risk Memory by name and count. If none are relevant, say that no relevant symbol-level history was found.
 - ${confirmedRelatedInstruction}
 
 Return structured Markdown with exactly these sections:
