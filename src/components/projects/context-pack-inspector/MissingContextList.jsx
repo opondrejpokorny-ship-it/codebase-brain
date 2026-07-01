@@ -16,6 +16,8 @@ export default function MissingContextList({
   copiedPaths,
   onCopyImportInstructions,
   copiedImportInstructions,
+  onCopyResolvePayload,
+  copiedResolvePayload,
   onAddToQueue,
   queued,
   queuedTargets = [],
@@ -41,6 +43,12 @@ export default function MissingContextList({
             <Button type="button" variant="outline" size="sm" onClick={onCopyImportInstructions} className="h-7 gap-1.5 cursor-pointer text-xs bg-white/70">
               {copiedImportInstructions ? <Check className="w-3 h-3" /> : <ClipboardCopy className="w-3 h-3" />}
               {copiedImportInstructions ? "Copied" : "Copy import instructions"}
+            </Button>
+          )}
+          {onCopyResolvePayload && (
+            <Button type="button" variant="outline" size="sm" onClick={onCopyResolvePayload} className="h-7 gap-1.5 cursor-pointer text-xs bg-white/70">
+              {copiedResolvePayload ? <Check className="w-3 h-3" /> : <ClipboardCopy className="w-3 h-3" />}
+              {copiedResolvePayload ? "Copied" : "Copy resolve payload"}
             </Button>
           )}
           {canQueue && (
