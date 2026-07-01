@@ -41,6 +41,10 @@ The architecture lens now has a product-context utility available through `src/l
 
 Added `src/lib/graphLensUtils.js` and `src/pages/GraphLens.jsx`, exposed at `/project/:id/graph`. This is a practical 2D SVG graph lens before the heavier 3D/WebGL phase. It shows folders, files, internal import relations, external packages, node type colors, node size by fanout/symbol density, filters, search, clickable node detail, symbol chips, relation evidence, and a first direct-impact-radius highlight.
 
+### 5c. Graph Lens v2 PR impact overlay
+
+Graph Lens now has a PR overlay panel. Users can paste changed file paths or unified diff snippets, choose a `SAFE`, `REVIEW`, or `BLOCK` verdict, and see changed files highlighted in orange, directly related files highlighted in blue, and missing changed files listed as missing context. The overlay is deterministic and uses the current Code Graph Lite relations without posting GitHub comments or changing repository state.
+
 ### 6. GitHub App private import
 
 The repo already has the safe GitHub App skeleton, private import readiness, repository link metadata, and dry-run installation token helper. The next production step remains backend-only non-dry-run installation token creation behind feature flags.
@@ -64,7 +68,7 @@ Added `src/lib/mcpLiteTools.js` with a tool manifest and config-snippet generato
 ## Current implementation status
 
 - Product surfaces added: Search Codebase, Architecture, Graph Lens, Decisions, MCP Setup, Risk Memory, Project Rules.
-- Foundations added: graph persistence helpers, graph lens data builder, product-context helpers, decision memory helpers, freshness helpers, MCP Lite manifest, verdict calibration.
+- Foundations added: graph persistence helpers, graph lens data builder, graph PR overlay, product-context helpers, decision memory helpers, freshness helpers, MCP Lite manifest, verdict calibration.
 - Still intentionally deferred: running MCP server, backend-only private import token creation, queued webhook PR analysis, persisted Base44 entities for graph/decisions/context packs, local tree-sitter/LSP engine, and 3D/WebGL graph mode.
 
 ## Remaining implementation order
@@ -72,7 +76,7 @@ Added `src/lib/mcpLiteTools.js` with a tool manifest and config-snippet generato
 1. Add optional Base44 entities: `CodeRelation`, `CodeSymbol`, `DecisionMemory`, `ContextPack`, `CodebaseAnalysis`.
 2. Wire `graphPersistenceUtils.persistGraphSnapshot()` into repository import and manual rebuild flows.
 3. Add context freshness banners using `freshnessUtils`.
-4. Add PR impact overlay mode to Graph Lens: changed files, related files, missing context, and SAFE / REVIEW / BLOCK verdict.
+4. Connect Graph Lens PR overlay to saved PR Inbox analyses instead of only pasted paths.
 5. Add queued PR analysis from webhook deliveries without posting GitHub comments.
 6. Add read-only private repo import behind `GITHUB_PRIVATE_IMPORT_ENABLED`.
 7. Promote verdicts into the PR Inbox and Risk Memory views.
