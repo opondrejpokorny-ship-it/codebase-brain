@@ -42,6 +42,9 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
   const selectedRelations = contextPack.selectedRelations || [];
   const warnings = contextPack.warnings || [];
   const efficiency = contextPack.efficiency || {};
+  const selectedFileTokens = efficiency.selectedFileTokens || efficiency.selectedTokens || contextPack.estimatedTokens || 0;
+  const extraContextTokens = efficiency.extraContextTokens || 0;
+  const fullRepoTokens = efficiency.fullRepoTokens || 0;
   const depthLabel = contextPack.depthPreset || contextPack.depth || "Balanced";
   const changedSet = new Set(changedFiles || []);
   const selectedPathSet = new Set(selectedFiles.map((file) => file.path).filter(Boolean));
@@ -125,10 +128,11 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 mb-4 text-xs">
-        <div className="rounded-md bg-slate-50 px-2 py-2"><p className="text-slate-400">Selected</p><p className="font-semibold text-slate-700">{formatEstimatedTokens(efficiency.selectedTokens || contextPack.estimatedTokens || 0)}</p></div>
-        <div className="rounded-md bg-slate-50 px-2 py-2"><p className="text-slate-400">Full repo</p><p className="font-semibold text-slate-700">{formatEstimatedTokens(efficiency.fullRepoTokens || 0)}</p></div>
-        <div className="rounded-md bg-emerald-50 px-2 py-2"><p className="text-emerald-500">Saved</p><p className="font-semibold text-emerald-700">{efficiency.savingsPercent || 0}%</p></div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4 text-xs">
+        <div className="rounded-md bg-slate-50 px-2 py-2"><p className="text-slate-400">Selected files</p><p className="font-semibold text-slate-700">{formatEstimatedTokens(selectedFileTokens)}</p></div>
+        <div className="rounded-md bg-slate-50 px-2 py-2"><p className="text-slate-400">Extra context</p><p className="font-semibold text-slate-700">{formatEstimatedTokens(extraContextTokens)}</p></div>
+        <div className="rounded-md bg-slate-50 px-2 py-2"><p className="text-slate-400">Full repo files</p><p className="font-semibold text-slate-700">{formatEstimatedTokens(fullRepoTokens)}</p></div>
+        <div className="rounded-md bg-emerald-50 px-2 py-2"><p className="text-emerald-500">Files saved</p><p className="font-semibold text-emerald-700">{efficiency.savingsPercent || 0}%</p></div>
       </div>
 
       <CoverageCard coverage={coverage} />
