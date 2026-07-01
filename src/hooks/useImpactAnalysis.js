@@ -3,70 +3,64 @@ import { base44 } from "@/api/base44Client";
 import { useToast } from "@/components/ui/use-toast";
 import { buildCodeRelations, relatedPathsForChangedFiles, summarizeCodeGraph } from "@/lib/codeGraphUtils";
 import { buildContextPack } from "@/lib/contextPackBuilder";
-import { formatPrDiffForImpactAnalysis } from "@/lib/githubPrUtils";
-import { compareProjectAndPrRepository } from "@/lib/repositoryCompatibilityUtils";
+import { resolveContextDepthPreset } from "@/lib/contextRelevanceScoring";
 import {
   calibrateImpactAnalysisOutput,
+  compareProjectAndPrRepository,
   extractChangedFiles,
+  formatPrDiffForImpactAnalysis,
   heuristicRiskSignals,
   initialRiskLevel,
 } from "@/lib/impactAnalysisUtils";
 import { buildImpactAnalysisPromptWithDepth } from "@/lib/impactAnalysisPromptBuilder";
-import {
-  formatRiskMemoryForPrompt,
-  mergeAnalysisHistories,
-  readLocalAnalysisHistory,
-} from "@/lib/analysisHistoryUtils";
+import { formatRiskMemoryForPrompt, mergeAnalysisHistories, readLocalAnalysisHistory } from "@/lib/analysisHistoryUtils";
 import { formatProjectRulesForPrompt, getProjectRulesForRuntime } from "@/lib/projectRulesUtils";
+import { exampleImpactDiff, fallbackProjectFromFiles, fetchPublicGithubPrDiffWithFallback, optionalEntity } from "@/lib/impactAnalysisRuntimeUtils";
 import { buildImpactAnalysisHistoryRecord, persistImpactAnalysisHistory } from "@/lib/impactAnalysisHistoryRuntime";
-import {
-  exampleImpactDiff,
-  fallbackProjectFromFiles,
-  fetchPublicGithubPrDiffWithFallback,
-  optionalEntity,
-} from "@/lib/impactAnalysisRuntimeUtils";
-import { resolveContextDepthPreset } from "@/lib/contextRelevanceScoring";
+
+function llmText(value) {
+  if (typeof value === "string") return value;
+  if (value == null) return "";
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
 
 export function useImpactAnalysis(projectId) {
   const { toast } = useToast();
   const [project, setProject] = useState(null);
   const [files, setFiles] = useState([]);
-  const [analyses, setAnalyses] = useState([]);
-  const [prUrl, setPrUrl] = useState("");
-  const [prMeta, setPrMeta] = useState(null);
   const [changeInput, setChangeInput] = useState("");
-  const [contextDepth, setContextDepth] = useState("balanced");
+  const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState("");
   const [riskLevel, setRiskLevel] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [analyses, setAnalyses] = useState([]);
+  const [prUrl, setPrUrl] = useState("");
   const [fetchingPr, setFetchingPr] = useState(false);
-  const [analyzing, setAnalyzing] = useState(false);
+  const [prMeta, setPrMeta] = useState(null);
+  const [contextDepth, setContextDepth] = useState("balanced");
 
   useEffect(() => {
     let cancelled = false;
-
-    async function loadImpactContext() {
-      setLoading(true);
-      try {
-        const [projects, storedFiles] = await Promise.all([
-          base44.entities.CodebaseProject.filter({ id: projectId }).catch(() => []),
-          base44.entities.CodeFile.filter({ project_id: projectId }).catch(() => []),
-        ]);
-        const analysisEntity = optionalEntity("CodebaseAnalysis");
-        const storedAnalyses = analysisEntity?.filter ? await analysisEntity.filter({ project_id: projectId }, "created_date", 20).catch(() => []) : [];
-        const localAnalyses = readLocalAnalysisHistory(projectId);
-
-        if (!cancelled) {
-          setProject(projects?.[0] || fallbackProjectFromFiles(projectId, storedFiles || []));
-          setFiles(storedFiles || []);
-          setAnalyses(mergeAnalysisHistories(storedAnalyses || [], localAnalyses || []).slice(0, 20));
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
+    async function load() {
+      const [projects, storedFiles] = await Promise.all([
+        base44.entities.CodebaseProject.filter({ id: projectId }).catch(() => []),
+        base44.entities.CodeFile.filter({ project_id: projectId }).catch(() => []),
+      ]);
+      const remoteAnalysisEntity = optionalEntity("CodebaseAnalysis");
+      const remoteAnalyses = remoteAnalysisEntity?.filter
+        ? await remoteAnalysisEntity.filter({ project_id: projectId }, "created_date", 30).catch(() => [])
+        : [];
+      const localAnalyses = readLocalAnalysisHistory(projectId);
+      if (!cancelled) {
+        setProject(projects?.[0] || fallbackProjectFromFiles(storedFiles));
+        setFiles(storedFiles || []);
+        setAnalyses(mergeAnalysisHistories(remoteAnalyses || [], localAnalyses || []));
       }
     }
-
-    loadImpactContext();
+    load();
     return () => { cancelled = true; };
   }, [projectId]);
 
@@ -81,7 +75,6 @@ export function useImpactAnalysis(projectId) {
   const contextPackPreview = useMemo(() => {
     if (!changeInput.trim() || files.length === 0) return null;
     return buildContextPack({
-      project,
       files,
       relations: codeRelations,
       question: changeInput,
@@ -90,7 +83,7 @@ export function useImpactAnalysis(projectId) {
       maxTokens: depthPreset.maxTokens,
       depth: contextDepth,
     });
-  }, [project, files, codeRelations, changeInput, changedFiles, depthPreset.maxTokens, contextDepth]);
+  }, [files, codeRelations, changeInput, changedFiles, depthPreset.maxTokens, contextDepth]);
 
   const handleFetchPr = async () => {
     if (!prUrl.trim()) {
@@ -144,7 +137,8 @@ export function useImpactAnalysis(projectId) {
       const projectRulesText = formatProjectRulesForPrompt(getProjectRulesForRuntime(projectId));
       const payload = buildImpactAnalysisPromptWithDepth({ project, files, changeInput, relations: codeRelations, riskMemoryText, projectRulesText, contextDepth });
       const answer = await base44.integrations.Core.InvokeLLM({ prompt: payload.prompt });
-      const calibrated = calibrateImpactAnalysisOutput({ text: answer || "No analysis was generated.", heuristicRisk: payload.heuristicRisk, signals: payload.signals, changeInput });
+      const answerText = llmText(answer) || "No analysis was generated.";
+      const calibrated = calibrateImpactAnalysisOutput({ text: answerText, heuristicRisk: payload.heuristicRisk, signals: payload.signals, changeInput });
       setResult(calibrated.text);
       setRiskLevel(calibrated.riskLevel);
 
@@ -160,29 +154,29 @@ export function useImpactAnalysis(projectId) {
   return {
     project,
     files,
+    changeInput,
+    updateChangeInput,
+    analyzing,
+    result,
+    riskLevel,
     analyses,
     prUrl,
     setPrUrl,
+    fetchingPr,
     prMeta,
-    changeInput,
-    updateChangeInput,
     contextDepth,
     setContextDepth,
     depthPreset,
-    result,
-    riskLevel,
-    loading,
-    fetchingPr,
-    analyzing,
     changedFiles,
     signals,
     heuristicRisk,
+    codeRelations,
     graphSummary,
     relatedPaths,
     compatibility,
     contextPackPreview,
     handleFetchPr,
-    handleAnalyze,
     useExample,
+    handleAnalyze,
   };
 }
