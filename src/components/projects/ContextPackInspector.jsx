@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { Check, ClipboardCopy, PackageSearch, TriangleAlert } from "lucide-react";
+import { base44 } from "@/api/base44Client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/use-toast";
 import CoverageCard from "@/components/projects/context-pack-inspector/CoverageCard";
 import MissingContextList from "@/components/projects/context-pack-inspector/MissingContextList";
 import RelationList from "@/components/projects/context-pack-inspector/RelationList";
@@ -55,11 +57,19 @@ function buildResolveMissingContextPayload({ projectId, project, currentMissingT
   };
 }
 
+function resolvedCountFromResponse(value) {
+  const data = value?.data || value || {};
+  const files = data.importedFiles || data.imported_files || data.resolvedFiles || data.resolved_files || [];
+  return Array.isArray(files) ? files.length : Number(data.resolved_count || data.imported_count || 0) || 0;
+}
+
 export default function ContextPackInspector({ contextPack, changedFiles = [], projectId = null, project = null }) {
+  const { toast } = useToast();
   const [copied, setCopied] = useState(false);
   const [copiedPaths, setCopiedPaths] = useState(false);
   const [copiedImportInstructions, setCopiedImportInstructions] = useState(false);
   const [copiedResolvePayload, setCopiedResolvePayload] = useState(false);
+  const [resolvingCurrent, setResolvingCurrent] = useState(false);
   const [copiedQueue, setCopiedQueue] = useState(false);
   const [queued, setQueued] = useState(false);
   const [queuedTargets, setQueuedTargets] = useState(() => readMissingContextQueueForProject(projectId, project));
@@ -70,6 +80,7 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
     setCopiedQueue(false);
     setCopiedImportInstructions(false);
     setCopiedResolvePayload(false);
+    setResolvingCurrent(false);
   }, [projectId, project]);
 
   if (!contextPack) return null;
@@ -146,6 +157,32 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
     }
   };
 
+  const handleResolveCurrent = async () => {
+    if (!projectId || !project?.repository_url || !currentMissingTargets.length) {
+      toast({ title: "Cannot resolve current targets yet", description: "Project id, repository URL, and current missing targets are required.", variant: "destructive" });
+      return;
+    }
+
+    setResolvingCurrent(true);
+    try {
+      const payload = buildResolveMissingContextPayload({ projectId, project, currentMissingTargets });
+      const response = await base44.functions.invoke("resolveMissingContextTargets", payload);
+      const count = resolvedCountFromResponse(response);
+      toast({
+        title: count ? `Resolved ${count} missing context file${count === 1 ? "" : "s"}` : "Resolver finished",
+        description: count ? "Refresh and re-run the analysis to rebuild the context graph." : "No files were imported. Check resolver logs or copy the resolve payload.",
+      });
+    } catch (error) {
+      toast({
+        title: "Resolver backend not configured yet",
+        description: error?.message || "Create the Base44 function resolveMissingContextTargets, or copy the resolve payload for manual execution.",
+        variant: "destructive",
+      });
+    } finally {
+      setResolvingCurrent(false);
+    }
+  };
+
   const handleAddToQueue = async () => {
     const items = missingContextRelations.map(queueItemFromRelation).filter(Boolean);
     const next = await addPersistentMissingContextQueueItems(projectId, items, project);
@@ -213,6 +250,8 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
         copiedImportInstructions={copiedImportInstructions}
         onCopyResolvePayload={handleCopyResolvePayload}
         copiedResolvePayload={copiedResolvePayload}
+        onResolveCurrent={handleResolveCurrent}
+        resolvingCurrent={resolvingCurrent}
         onAddToQueue={handleAddToQueue}
         queued={queueButtonActive}
         queuedTargets={queuedTargets}
