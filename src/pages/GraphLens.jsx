@@ -41,6 +41,15 @@ function normalizePath(path = "") {
     .replace(/\/+/g, "/");
 }
 
+function readInitialPrKey() {
+  try {
+    if (typeof window === "undefined") return "";
+    return new URLSearchParams(window.location.search).get("pr") || "";
+  } catch {
+    return "";
+  }
+}
+
 function looksLikePath(value = "") {
   const path = normalizePath(value);
   return path.includes("/") && /\.[a-z0-9]{1,8}$/i.test(path) && !path.includes(" ");
@@ -233,52 +242,24 @@ function SelectedNodePanel({ graph, selectedId, symbols }) {
       </div>
 
       <div className="grid grid-cols-3 gap-2 text-center">
-        <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
-          <div className="text-lg font-semibold text-slate-900">{node.inbound || 0}</div>
-          <div className="text-xs text-slate-500">Inbound</div>
-        </div>
-        <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
-          <div className="text-lg font-semibold text-slate-900">{node.outbound || 0}</div>
-          <div className="text-xs text-slate-500">Outbound</div>
-        </div>
-        <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
-          <div className="text-lg font-semibold text-slate-900">{node.symbols || 0}</div>
-          <div className="text-xs text-slate-500">Symbols</div>
-        </div>
+        <div className="rounded-lg bg-slate-50 border border-slate-200 p-3"><div className="text-lg font-semibold text-slate-900">{node.inbound || 0}</div><div className="text-xs text-slate-500">Inbound</div></div>
+        <div className="rounded-lg bg-slate-50 border border-slate-200 p-3"><div className="text-lg font-semibold text-slate-900">{node.outbound || 0}</div><div className="text-xs text-slate-500">Outbound</div></div>
+        <div className="rounded-lg bg-slate-50 border border-slate-200 p-3"><div className="text-lg font-semibold text-slate-900">{node.symbols || 0}</div><div className="text-xs text-slate-500">Symbols</div></div>
       </div>
 
-      <div>
-        <h3 className="text-sm font-semibold text-slate-900">Impact radius</h3>
-        <p className="text-sm text-slate-500 mt-1">
-          Highlighted neighbors are files/directories directly connected to this node. In PR overlay mode, orange means changed and blue means directly related.
-        </p>
-      </div>
+      <div><h3 className="text-sm font-semibold text-slate-900">Impact radius</h3><p className="text-sm text-slate-500 mt-1">Highlighted neighbors are files/directories directly connected to this node. In PR overlay mode, orange means changed and blue means directly related.</p></div>
 
       {nodeSymbols.length > 0 && (
-        <div>
-          <h3 className="text-sm font-semibold text-slate-900 mb-2">Symbols</h3>
-          <div className="flex flex-wrap gap-1.5">
-            {nodeSymbols.map((symbol) => (
-              <span key={`${symbol.file_path}-${symbol.symbol_kind}-${symbol.symbol_name}`} className="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded-md font-mono">
-                {symbol.symbol_kind}:{symbol.symbol_name}
-              </span>
-            ))}
-          </div>
-        </div>
+        <div><h3 className="text-sm font-semibold text-slate-900 mb-2">Symbols</h3><div className="flex flex-wrap gap-1.5">
+          {nodeSymbols.map((symbol) => <span key={`${symbol.file_path}-${symbol.symbol_kind}-${symbol.symbol_name}`} className="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded-md font-mono">{symbol.symbol_kind}:{symbol.symbol_name}</span>)}
+        </div></div>
       )}
 
       <div>
         <h3 className="text-sm font-semibold text-slate-900 mb-2">Relation evidence</h3>
-        {evidence.length === 0 ? (
-          <p className="text-sm text-slate-500">No direct import relation evidence for this node in the current graph sample.</p>
-        ) : (
+        {evidence.length === 0 ? <p className="text-sm text-slate-500">No direct import relation evidence for this node in the current graph sample.</p> : (
           <div className="space-y-2 max-h-72 overflow-auto">
-            {evidence.map((edge) => (
-              <div key={edge.id} className="rounded-lg bg-slate-50 border border-slate-200 p-2 text-xs text-slate-600">
-                <div className="font-mono break-all">{edge.from.replace(/^file:/, "")} → {edge.to.replace(/^file:|^external:/, "")}</div>
-                <div className="mt-1 text-slate-400">{edge.kind}: {edge.label}</div>
-              </div>
-            ))}
+            {evidence.map((edge) => <div key={edge.id} className="rounded-lg bg-slate-50 border border-slate-200 p-2 text-xs text-slate-600"><div className="font-mono break-all">{edge.from.replace(/^file:/, "")} → {edge.to.replace(/^file:|^external:/, "")}</div><div className="mt-1 text-slate-400">{edge.kind}: {edge.label}</div></div>)}
           </div>
         )}
       </div>
@@ -295,96 +276,26 @@ function PrOverlayPanel({ overlayInput, setOverlayInput, overlayVerdict, setOver
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="font-semibold text-slate-900 flex items-center gap-2"><GitBranch className="w-4 h-4" />PR impact overlay</h2>
-          <p className="text-sm text-slate-500 mt-1">Load a saved PR Inbox analysis or paste changed paths/diff manually.</p>
-        </div>
-        <Badge className={verdictClasses(overlayVerdict)}>{overlayVerdict}</Badge>
-      </div>
+      <div className="flex items-start justify-between gap-3"><div><h2 className="font-semibold text-slate-900 flex items-center gap-2"><GitBranch className="w-4 h-4" />PR impact overlay</h2><p className="text-sm text-slate-500 mt-1">Load a saved PR Inbox analysis or paste changed paths/diff manually.</p></div><Badge className={verdictClasses(overlayVerdict)}>{overlayVerdict}</Badge></div>
 
-      <label className="block text-sm text-slate-600 space-y-1">
-        <span>Saved PR analysis</span>
-        <select
-          value={selectedPrItemKey}
-          onChange={(event) => onSelectPrItem(event.target.value)}
-          disabled={loadingPrItems || prItems.length === 0}
-          className="w-full h-10 rounded-md border border-slate-200 px-3 text-sm bg-white"
-        >
-          <option value="">{loadingPrItems ? "Loading saved PR analyses..." : prItems.length ? "Manual paste / no saved PR selected" : "No saved PR analyses yet"}</option>
-          {prItems.map((item) => {
-            const summary = summarizePrAnalysisForOverlay(item);
-            return <option key={summary.key} value={summary.key}>{summary.label} · {summary.verdict} · {summary.title}</option>;
-          })}
-        </select>
-      </label>
+      <label className="block text-sm text-slate-600 space-y-1"><span>Saved PR analysis</span><select value={selectedPrItemKey} onChange={(event) => onSelectPrItem(event.target.value)} disabled={loadingPrItems || prItems.length === 0} className="w-full h-10 rounded-md border border-slate-200 px-3 text-sm bg-white"><option value="">{loadingPrItems ? "Loading saved PR analyses..." : prItems.length ? "Manual paste / no saved PR selected" : "No saved PR analyses yet"}</option>{prItems.map((item) => { const summary = summarizePrAnalysisForOverlay(item); return <option key={summary.key} value={summary.key}>{summary.label} · {summary.verdict} · {summary.title}</option>; })}</select></label>
 
-      {selectedSummary && (
-        <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">
-          Loaded from PR Inbox: {selectedSummary.label} · {selectedSummary.risk} risk · {selectedSummary.changedFiles || changedFiles.length} changed files
-          {selectedSummary.url && <a href={selectedSummary.url} target="_blank" rel="noreferrer" className="block underline mt-1">Open PR</a>}
-        </div>
-      )}
+      {selectedSummary && <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">Loaded from PR Inbox: {selectedSummary.label} · {selectedSummary.risk} risk · {selectedSummary.changedFiles || changedFiles.length} changed files{selectedSummary.url && <a href={selectedSummary.url} target="_blank" rel="noreferrer" className="block underline mt-1">Open PR</a>}</div>}
 
-      <div className="grid grid-cols-3 gap-2 text-center">
-        <div className="rounded-lg bg-orange-50 border border-orange-200 p-3">
-          <div className="text-lg font-semibold text-orange-700">{changedFiles.length}</div>
-          <div className="text-xs text-orange-700">Changed</div>
-        </div>
-        <div className="rounded-lg bg-sky-50 border border-sky-200 p-3">
-          <div className="text-lg font-semibold text-sky-700">{relatedFiles.length}</div>
-          <div className="text-xs text-sky-700">Related</div>
-        </div>
-        <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
-          <div className="text-lg font-semibold text-slate-700">{missingFiles.length}</div>
-          <div className="text-xs text-slate-500">Missing</div>
-        </div>
-      </div>
+      <div className="grid grid-cols-3 gap-2 text-center"><div className="rounded-lg bg-orange-50 border border-orange-200 p-3"><div className="text-lg font-semibold text-orange-700">{changedFiles.length}</div><div className="text-xs text-orange-700">Changed</div></div><div className="rounded-lg bg-sky-50 border border-sky-200 p-3"><div className="text-lg font-semibold text-sky-700">{relatedFiles.length}</div><div className="text-xs text-sky-700">Related</div></div><div className="rounded-lg bg-slate-50 border border-slate-200 p-3"><div className="text-lg font-semibold text-slate-700">{missingFiles.length}</div><div className="text-xs text-slate-500">Missing</div></div></div>
 
-      <label className="block text-sm text-slate-600 space-y-1">
-        <span>Verdict</span>
-        <select value={overlayVerdict} onChange={(event) => setOverlayVerdict(event.target.value)} className="w-full h-10 rounded-md border border-slate-200 px-3 text-sm bg-white">
-          {VERDICTS.map((verdict) => <option key={verdict} value={verdict}>{verdict}</option>)}
-        </select>
-      </label>
+      <label className="block text-sm text-slate-600 space-y-1"><span>Verdict</span><select value={overlayVerdict} onChange={(event) => setOverlayVerdict(event.target.value)} className="w-full h-10 rounded-md border border-slate-200 px-3 text-sm bg-white">{VERDICTS.map((verdict) => <option key={verdict} value={verdict}>{verdict}</option>)}</select></label>
+      <textarea value={overlayInput} onChange={(event) => setOverlayInput(event.target.value)} placeholder={"Paste changed files or diff, e.g.\nsrc/pages/GraphLens.jsx\nsrc/lib/graphLensUtils.js\n\nor lines like: diff --git a/src/App.jsx b/src/App.jsx"} className="w-full min-h-40 rounded-md border border-slate-200 p-3 text-xs font-mono" />
+      <div className="flex gap-2"><Button variant="outline" size="sm" onClick={() => setOverlayInput("src/pages/GraphLens.jsx\nsrc/lib/graphLensUtils.js")} className="cursor-pointer">Use sample</Button><Button variant="outline" size="sm" onClick={() => { setOverlayInput(""); onSelectPrItem(""); }} className="cursor-pointer">Clear overlay</Button></div>
 
-      <textarea
-        value={overlayInput}
-        onChange={(event) => setOverlayInput(event.target.value)}
-        placeholder={"Paste changed files or diff, e.g.\nsrc/pages/GraphLens.jsx\nsrc/lib/graphLensUtils.js\n\nor lines like: diff --git a/src/App.jsx b/src/App.jsx"}
-        className="w-full min-h-40 rounded-md border border-slate-200 p-3 text-xs font-mono"
-      />
-
-      <div className="flex gap-2">
-        <Button variant="outline" size="sm" onClick={() => setOverlayInput("src/pages/GraphLens.jsx\nsrc/lib/graphLensUtils.js")} className="cursor-pointer">Use sample</Button>
-        <Button variant="outline" size="sm" onClick={() => { setOverlayInput(""); onSelectPrItem(""); }} className="cursor-pointer">Clear overlay</Button>
-      </div>
-
-      {hasOverlay ? (
-        <div className="space-y-3">
-          <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 text-xs text-slate-600">
-            Orange = changed files. Blue = directly connected files from import relations. Gray missing list = changed files not present in stored context.
-          </div>
-          {missingFiles.length > 0 && (
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900 mb-2">Missing context</h3>
-              <div className="space-y-1 max-h-32 overflow-auto">
-                {missingFiles.slice(0, 12).map((path) => <div key={path} className="text-xs font-mono text-slate-500 bg-slate-50 border border-slate-200 rounded-md px-2 py-1">{path}</div>)}
-              </div>
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 text-xs text-slate-500">
-          No PR overlay is active yet. Select a saved PR analysis or paste changed files to preview blast radius before merge.
-        </div>
-      )}
+      {hasOverlay ? <div className="space-y-3"><div className="rounded-lg bg-slate-50 border border-slate-200 p-3 text-xs text-slate-600">Orange = changed files. Blue = directly connected files from import relations. Gray missing list = changed files not present in stored context.</div>{missingFiles.length > 0 && <div><h3 className="text-sm font-semibold text-slate-900 mb-2">Missing context</h3><div className="space-y-1 max-h-32 overflow-auto">{missingFiles.slice(0, 12).map((path) => <div key={path} className="text-xs font-mono text-slate-500 bg-slate-50 border border-slate-200 rounded-md px-2 py-1">{path}</div>)}</div></div>}</div> : <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 text-xs text-slate-500">No PR overlay is active yet. Select a saved PR analysis or paste changed files to preview blast radius before merge.</div>}
     </div>
   );
 }
 
 export default function GraphLens() {
   const { id } = useParams();
+  const initialPrKey = useMemo(() => readInitialPrKey(), [id]);
   const [project, setProject] = useState(null);
   const [files, setFiles] = useState([]);
   const [prItems, setPrItems] = useState([]);
@@ -411,50 +322,34 @@ export default function GraphLens() {
       base44.entities.CodebaseProject.filter({ id }),
       base44.entities.CodeFile.filter({ project_id: id }),
       analysisEntity?.filter ? analysisEntity.filter({ project_id: id }, "created_date", 80).catch(() => []) : Promise.resolve([]),
-    ])
-      .then(([projects, storedFiles, remoteItems]) => {
-        if (cancelled) return;
-        setProject(projects?.[0] || null);
-        setFiles(storedFiles || []);
-        setPrItems(filterPrAnalysisItems(mergePrInboxItems(remoteItems || [], readLocalPrInbox(id))));
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setLoading(false);
-        setLoadingPrItems(false);
-      });
+    ]).then(([projects, storedFiles, remoteItems]) => {
+      if (cancelled) return;
+      setProject(projects?.[0] || null);
+      setFiles(storedFiles || []);
+      setPrItems(filterPrAnalysisItems(mergePrInboxItems(remoteItems || [], readLocalPrInbox(id))));
+    }).finally(() => {
+      if (cancelled) return;
+      setLoading(false);
+      setLoadingPrItems(false);
+    });
     return () => { cancelled = true; };
   }, [id]);
 
   const relations = useMemo(() => buildCodeRelations(files), [files]);
   const symbols = useMemo(() => extractProjectSymbols(files), [files]);
   const knownPaths = useMemo(() => new Set(files.map((file) => normalizePath(file.path)).filter(Boolean)), [files]);
-  const missingFiles = useMemo(() => {
-    const metadata = asAny(asAny(project).import_metadata);
-    return asArray(metadata.missingContextQueue || metadata.missing_context_queue).map((item) => asAny(item).path || String(item || "")).map(normalizePath).filter(Boolean);
-  }, [project]);
+  const missingFiles = useMemo(() => { const metadata = asAny(asAny(project).import_metadata); return asArray(metadata.missingContextQueue || metadata.missing_context_queue).map((item) => asAny(item).path || String(item || "")).map(normalizePath).filter(Boolean); }, [project]);
   const overlayChangedFiles = useMemo(() => parseChangedFiles(overlayInput), [overlayInput]);
   const overlayRelatedFiles = useMemo(() => deriveRelatedFiles(overlayChangedFiles, relations, knownPaths), [overlayChangedFiles, relations, knownPaths]);
   const overlayMissingFiles = useMemo(() => overlayChangedFiles.filter((path) => !knownPaths.has(path)), [overlayChangedFiles, knownPaths]);
   const effectiveMissingFiles = useMemo(() => [...new Set([...missingFiles, ...overlayMissingFiles])], [missingFiles, overlayMissingFiles]);
 
-  const graph = useMemo(() => buildGraphLensData({
-    files,
-    relations,
-    symbols,
-    missingFiles: effectiveMissingFiles,
-    changedFiles: overlayChangedFiles,
-    relatedFiles: overlayRelatedFiles,
-  }), [files, relations, symbols, effectiveMissingFiles, overlayChangedFiles, overlayRelatedFiles]);
+  const graph = useMemo(() => buildGraphLensData({ files, relations, symbols, missingFiles: effectiveMissingFiles, changedFiles: overlayChangedFiles, relatedFiles: overlayRelatedFiles }), [files, relations, symbols, effectiveMissingFiles, overlayChangedFiles, overlayRelatedFiles]);
   const filteredGraph = useMemo(() => filterGraphLens(graph, { search, enabledKinds }), [graph, search, enabledKinds]);
 
-  useEffect(() => {
-    if (selectedId && !filteredGraph.nodes.some((node) => node.id === selectedId)) setSelectedId("");
-  }, [filteredGraph.nodes, selectedId]);
+  useEffect(() => { if (selectedId && !filteredGraph.nodes.some((node) => node.id === selectedId)) setSelectedId(""); }, [filteredGraph.nodes, selectedId]);
 
-  const toggleKind = (kind) => {
-    setEnabledKinds((current) => current.includes(kind) ? current.filter((item) => item !== kind) : [...current, kind]);
-  };
+  const toggleKind = (kind) => { setEnabledKinds((current) => current.includes(kind) ? current.filter((item) => item !== kind) : [...current, kind]); };
 
   const selectPrItem = (key) => {
     setSelectedPrItemKey(key);
@@ -465,115 +360,26 @@ export default function GraphLens() {
     setOverlayVerdict(verdictFromPrAnalysis(item));
   };
 
-  if (loading) {
-    return <div className="flex items-center justify-center py-20"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /></div>;
-  }
+  useEffect(() => {
+    if (!initialPrKey || loadingPrItems || selectedPrItemKey || prItems.length === 0) return;
+    const decodedKey = decodeURIComponent(initialPrKey);
+    const match = prItems.find((item) => prAnalysisKey(item) === decodedKey);
+    if (match) selectPrItem(prAnalysisKey(match));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialPrKey, loadingPrItems, selectedPrItemKey, prItems]);
+
+  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /></div>;
 
   return (
     <div className="space-y-6">
-      <Link to={`/project/${id}`} className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 transition-colors duration-150 cursor-pointer">
-        <ArrowLeft className="w-3.5 h-3.5" />
-        Back to Project
-      </Link>
+      <Link to={`/project/${id}`} className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 transition-colors duration-150 cursor-pointer"><ArrowLeft className="w-3.5 h-3.5" />Back to Project</Link>
+      <div className="bg-white rounded-xl border border-slate-200 p-6"><div className="flex items-start justify-between gap-4 flex-wrap"><div><h1 className="font-heading text-xl font-bold text-slate-900 flex items-center gap-2"><Network className="w-5 h-5 text-slate-500" />Graph Lens</h1><p className="text-sm text-slate-500 mt-1">Practical 2D codebase graph for {project?.name || "this project"}: files, folders, imports, external packages, symbols, PR overlay, and impact radius.</p></div><div className="flex gap-2 flex-wrap">{overlayChangedFiles.length > 0 && <Badge className={verdictClasses(overlayVerdict)}>Overlay {overlayVerdict}</Badge>}<Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200">{prItems.length} saved PRs</Badge><Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200">{graph.stats.files}/{graph.stats.totalFiles} files</Badge><Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200">{graph.stats.relations}/{graph.stats.totalRelations} relations</Badge><Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200">{graph.stats.symbols} symbols</Badge></div></div></div>
 
-      <div className="bg-white rounded-xl border border-slate-200 p-6">
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <h1 className="font-heading text-xl font-bold text-slate-900 flex items-center gap-2">
-              <Network className="w-5 h-5 text-slate-500" />
-              Graph Lens
-            </h1>
-            <p className="text-sm text-slate-500 mt-1">
-              Practical 2D codebase graph for {project?.name || "this project"}: files, folders, imports, external packages, symbols, PR overlay, and impact radius.
-            </p>
-          </div>
-          <div className="flex gap-2 flex-wrap">
-            {overlayChangedFiles.length > 0 && <Badge className={verdictClasses(overlayVerdict)}>Overlay {overlayVerdict}</Badge>}
-            <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200">{prItems.length} saved PRs</Badge>
-            <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200">{graph.stats.files}/{graph.stats.totalFiles} files</Badge>
-            <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200">{graph.stats.relations}/{graph.stats.totalRelations} relations</Badge>
-            <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200">{graph.stats.symbols} symbols</Badge>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-5">
-        <div className="space-y-4 min-w-0">
-          <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <Search className="w-4 h-4 text-slate-400" />
-              <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search node by file path, folder, package, or kind" />
-              <Button variant="outline" onClick={() => { setSearch(""); setEnabledKinds([]); }} className="cursor-pointer">Reset</Button>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-500"><Filter className="w-3.5 h-3.5" />Filters</span>
-              {PRIMARY_KINDS.map((kind) => {
-                const active = enabledKinds.includes(kind);
-                const count = graph.kindCounts[kind] || 0;
-                return (
-                  <button
-                    key={kind}
-                    onClick={() => toggleKind(kind)}
-                    className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${active ? "bg-slate-900 text-white border-slate-900" : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"}`}
-                  >
-                    {kindLabel(kind)} {count}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {files.length === 0 ? (
-            <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-sm text-slate-500">
-              No stored files are available for this project yet. Import code first, then Graph Lens can build a graph.
-            </div>
-          ) : (
-            <GraphSvg graph={filteredGraph} selectedId={selectedId} onSelect={setSelectedId} />
-          )}
-
-          <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <h2 className="text-sm font-semibold text-slate-900 mb-3 flex items-center gap-2"><Eye className="w-4 h-4" />Legend</h2>
-            <div className="flex flex-wrap gap-3">
-              <div className="flex items-center gap-2 text-xs text-slate-600"><span className="w-3 h-3 rounded-full border-2 border-orange-500" />Changed</div>
-              <div className="flex items-center gap-2 text-xs text-slate-600"><span className="w-3 h-3 rounded-full border-2 border-sky-400" />Related</div>
-              <div className="flex items-center gap-2 text-xs text-slate-600"><span className="w-3 h-3 rounded-full border-2 border-slate-400" />Missing context</div>
-              {graph.legend.filter((item) => item.count > 0 || ["page", "component", "backend", "utility"].includes(item.kind)).map((item) => (
-                <div key={item.kind} className="flex items-center gap-2 text-xs text-slate-600">
-                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
-                  {kindLabel(item.kind)} <span className="text-slate-400">{item.count}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <SelectedNodePanel graph={filteredGraph} selectedId={selectedId} symbols={symbols} />
-          <PrOverlayPanel
-            overlayInput={overlayInput}
-            setOverlayInput={setOverlayInput}
-            overlayVerdict={overlayVerdict}
-            setOverlayVerdict={setOverlayVerdict}
-            changedFiles={overlayChangedFiles}
-            relatedFiles={overlayRelatedFiles}
-            missingFiles={overlayMissingFiles}
-            prItems={prItems}
-            selectedPrItemKey={selectedPrItemKey}
-            onSelectPrItem={selectPrItem}
-            loadingPrItems={loadingPrItems}
-          />
-
-          <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-3">
-            <h2 className="font-semibold text-slate-900 flex items-center gap-2"><Sparkles className="w-4 h-4" />3D View later</h2>
-            <p className="text-sm text-slate-500">
-              This 2D Lens is intentionally practical. The later 3D mode can reuse the same graph data and add WebGL, force-directed layout, clustering, export, and screenshot controls.
-            </p>
-            <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 text-xs text-slate-500">
-              Hidden for readability: {graph.stats.hiddenFiles} files and {graph.stats.hiddenRelations} relations. The graph prioritizes central files, routes, backend/API files, configs, and symbol-rich files.
-            </div>
-          </div>
-        </div>
-      </div>
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-5"><div className="space-y-4 min-w-0"><div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3"><div className="flex items-center gap-2"><Search className="w-4 h-4 text-slate-400" /><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search node by file path, folder, package, or kind" /><Button variant="outline" onClick={() => { setSearch(""); setEnabledKinds([]); }} className="cursor-pointer">Reset</Button></div><div className="flex items-center gap-2 flex-wrap"><span className="inline-flex items-center gap-1 text-xs font-medium text-slate-500"><Filter className="w-3.5 h-3.5" />Filters</span>{PRIMARY_KINDS.map((kind) => { const active = enabledKinds.includes(kind); const count = graph.kindCounts[kind] || 0; return <button key={kind} onClick={() => toggleKind(kind)} className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${active ? "bg-slate-900 text-white border-slate-900" : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"}`}>{kindLabel(kind)} {count}</button>; })}</div></div>
+        {files.length === 0 ? <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-sm text-slate-500">No stored files are available for this project yet. Import code first, then Graph Lens can build a graph.</div> : <GraphSvg graph={filteredGraph} selectedId={selectedId} onSelect={setSelectedId} />}
+        <div className="bg-white rounded-xl border border-slate-200 p-4"><h2 className="text-sm font-semibold text-slate-900 mb-3 flex items-center gap-2"><Eye className="w-4 h-4" />Legend</h2><div className="flex flex-wrap gap-3"><div className="flex items-center gap-2 text-xs text-slate-600"><span className="w-3 h-3 rounded-full border-2 border-orange-500" />Changed</div><div className="flex items-center gap-2 text-xs text-slate-600"><span className="w-3 h-3 rounded-full border-2 border-sky-400" />Related</div><div className="flex items-center gap-2 text-xs text-slate-600"><span className="w-3 h-3 rounded-full border-2 border-slate-400" />Missing context</div>{graph.legend.filter((item) => item.count > 0 || ["page", "component", "backend", "utility"].includes(item.kind)).map((item) => <div key={item.kind} className="flex items-center gap-2 text-xs text-slate-600"><span className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />{kindLabel(item.kind)} <span className="text-slate-400">{item.count}</span></div>)}</div></div></div>
+        <div className="space-y-4"><SelectedNodePanel graph={filteredGraph} selectedId={selectedId} symbols={symbols} /><PrOverlayPanel overlayInput={overlayInput} setOverlayInput={setOverlayInput} overlayVerdict={overlayVerdict} setOverlayVerdict={setOverlayVerdict} changedFiles={overlayChangedFiles} relatedFiles={overlayRelatedFiles} missingFiles={overlayMissingFiles} prItems={prItems} selectedPrItemKey={selectedPrItemKey} onSelectPrItem={selectPrItem} loadingPrItems={loadingPrItems} />
+          <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-3"><h2 className="font-semibold text-slate-900 flex items-center gap-2"><Sparkles className="w-4 h-4" />3D View later</h2><p className="text-sm text-slate-500">This 2D Lens is intentionally practical. The later 3D mode can reuse the same graph data and add WebGL, force-directed layout, clustering, export, and screenshot controls.</p><div className="rounded-lg bg-slate-50 border border-slate-200 p-3 text-xs text-slate-500">Hidden for readability: {graph.stats.hiddenFiles} files and {graph.stats.hiddenRelations} relations. The graph prioritizes central files, routes, backend/API files, configs, and symbol-rich files.</div></div></div></div>
     </div>
   );
 }
