@@ -14,6 +14,8 @@ export default function MissingContextList({
   queuedOtherTargets = [],
   onCopyPaths,
   copiedPaths,
+  onCopyImportInstructions,
+  copiedImportInstructions,
   onAddToQueue,
   queued,
   queuedTargets = [],
@@ -35,6 +37,12 @@ export default function MissingContextList({
             {copiedPaths ? <Check className="w-3 h-3" /> : <ClipboardCopy className="w-3 h-3" />}
             {copiedPaths ? "Copied" : "Copy current targets"}
           </Button>
+          {onCopyImportInstructions && (
+            <Button type="button" variant="outline" size="sm" onClick={onCopyImportInstructions} className="h-7 gap-1.5 cursor-pointer text-xs bg-white/70">
+              {copiedImportInstructions ? <Check className="w-3 h-3" /> : <ClipboardCopy className="w-3 h-3" />}
+              {copiedImportInstructions ? "Copied" : "Copy import instructions"}
+            </Button>
+          )}
           {canQueue && (
             <Button type="button" variant="outline" size="sm" onClick={onAddToQueue} className="h-7 gap-1.5 cursor-pointer text-xs bg-white/70">
               {queued ? <Check className="w-3 h-3" /> : <PackageSearch className="w-3 h-3" />}
