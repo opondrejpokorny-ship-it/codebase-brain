@@ -24,6 +24,19 @@ function normalizeList(value) {
   return [];
 }
 
+function normalizeChangedSymbols(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((symbol) => ({
+      name: String(symbol?.name || ""),
+      type: String(symbol?.type || ""),
+      path: String(symbol?.path || ""),
+      line: Number(symbol?.line || 0) || null,
+      exported: Boolean(symbol?.exported),
+    }))
+    .filter((symbol) => symbol.name && symbol.path);
+}
+
 function escapeRegExp(value = "") {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -105,6 +118,7 @@ export function createAnalysisHistoryRecord(input = {}) {
     result,
     riskLevel,
     changedFiles,
+    changedSymbols,
     relatedFiles,
     riskSignals,
     relevantFiles,
@@ -132,6 +146,7 @@ export function createAnalysisHistoryRecord(input = {}) {
     risk_level: riskLevel || "medium",
     risk_calibration_version: CURRENT_RISK_CALIBRATION_VERSION,
     changed_files: normalizeList(changedFiles),
+    changed_symbols: normalizeChangedSymbols(changedSymbols),
     related_files: normalizeList(relatedFiles),
     risk_signals: normalizeList(riskSignals),
     relevant_files: normalizeList(relevantFiles),
