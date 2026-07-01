@@ -76,6 +76,7 @@ export default function ImpactAnalysis() {
           <PreScanPanel
             heuristicRisk={impact.heuristicRisk}
             changedFiles={impact.changedFiles}
+            changedSymbols={impact.changedSymbols}
             graphSummary={impact.graphSummary}
             relatedPaths={impact.relatedPaths}
             signals={impact.signals}
