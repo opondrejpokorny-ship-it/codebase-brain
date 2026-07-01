@@ -1,3 +1,0 @@
-# Merge Note
-
-Temporary note.
