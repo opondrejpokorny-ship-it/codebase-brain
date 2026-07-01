@@ -9,12 +9,16 @@ function asArray(value) {
 
 function importedFileCount(project = {}, files = []) {
   const metadata = project.import_metadata || {};
-  return files.length || metadata.imported_files || metadata.importedFiles || 0;
+  return files.length || metadata.imported_files || metadata.importedFiles || metadata.file_count || metadata.fileCount || 0;
 }
 
 function totalCandidateCount(project = {}, files = []) {
   const metadata = project.import_metadata || {};
-  return metadata.total_candidates || metadata.totalCandidates || metadata.tree_entries || metadata.treeEntries || Math.max(files.length, 1);
+  return metadata.total_candidates || metadata.totalCandidates || metadata.tree_entries || metadata.treeEntries || Math.max(importedFileCount(project, files), 1);
+}
+
+function hasStoredContext(project = {}, files = []) {
+  return importedFileCount(project, files) > 0;
 }
 
 function importScore(project = {}, files = []) {
@@ -26,7 +30,7 @@ function importScore(project = {}, files = []) {
 function contextScore(project = {}, files = []) {
   const metadata = project.import_metadata || {};
   const queue = asArray(metadata.missingContextQueue || metadata.missing_context_queue);
-  if (!files.length) return 10;
+  if (!hasStoredContext(project, files)) return 10;
   if (!queue.length) return 90;
   return Math.max(25, 90 - Math.min(55, queue.length * 8));
 }
@@ -58,6 +62,7 @@ function priority(id, title, description, severity = 'medium') {
 export function buildProductQualityReport({ project = {}, files = [], analyses = [], rules = [] } = {}) {
   const metadata = project.import_metadata || {};
   const missingQueue = asArray(metadata.missingContextQueue || metadata.missing_context_queue);
+  const storedContext = hasStoredContext(project, files);
   const scores = {
     importCoverage: importScore(project, files),
     contextCompleteness: contextScore(project, files),
@@ -69,7 +74,7 @@ export function buildProductQualityReport({ project = {}, files = [], analyses =
   const priorities = [];
 
   if (project.status === 'url_only') priorities.push(priority('import_private', 'Import real source files', 'This project is still URL-only, so answers and reviews cannot be grounded enough.', 'high'));
-  if (!files.length) priorities.push(priority('no_files', 'Add code context', 'No CodeFile records were found for this project.', 'high'));
+  if (!storedContext) priorities.push(priority('no_files', 'Add code context', 'No CodeFile records or import metadata were found for this project.', 'high'));
   if (missingQueue.length) priorities.push(priority('resolve_missing_context', 'Resolve missing context queue', `${missingQueue.length} queued imports or unresolved references should be resolved.`, 'medium'));
   if (!rules.length) priorities.push(priority('add_project_rules', 'Add project rules', 'Rules and ADR memory help turn one-off analysis into repeatable product behavior.', 'medium'));
   if (!analyses.length) priorities.push(priority('run_impact_analysis', 'Run first impact analysis', 'Risk Memory improves after at least one stored analysis.', 'low'));
@@ -80,7 +85,7 @@ export function buildProductQualityReport({ project = {}, files = [], analyses =
     tier,
     scores,
     stats: {
-      files: files.length,
+      files: files.length || importedFileCount(project, files),
       importedFiles: importedFileCount(project, files),
       totalCandidates: totalCandidateCount(project, files),
       missingContextItems: missingQueue.length,
