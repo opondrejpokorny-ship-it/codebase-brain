@@ -13,6 +13,7 @@ export function buildImpactAnalysisHistoryRecord({ projectId, prMeta, compatibil
     result: calibrated.text,
     riskLevel: calibrated.riskLevel,
     changedFiles: payload.changedFiles,
+    changedSymbols: payload.changedSymbols,
     relatedFiles: payload.relatedPaths,
     riskSignals: payload.signals,
     relevantRelations: payload.relevantRelations.map((relation) => `${relation.from_file}->${relation.to_file || relation.import_path}`),
