@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import { Download, Network } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import GraphPersistenceStatusBadges from '@/components/projects/GraphPersistenceStatusBadges';
 import { buildGraphSnapshot, graphSnapshotToMarkdown } from '@/lib/graphPersistenceUtils';
 import { downloadJsonReport, downloadMarkdownReport } from '@/lib/reportDownloadUtils';
 
@@ -22,6 +23,7 @@ export default function GraphSnapshotCard({ project, files = [] }) {
           <p className="text-xs text-slate-400 mt-1">
             Dry-run snapshot for future persisted CodeRelation / CodeSymbol entities.
           </p>
+          <GraphPersistenceStatusBadges className="mt-2" />
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" className="gap-1.5 cursor-pointer" onClick={() => downloadJsonReport(project?.name || 'project', 'graph-snapshot', snapshot)}>
