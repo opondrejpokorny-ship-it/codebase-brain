@@ -11,7 +11,10 @@ function canStore() {
 
 function entryKey(entry = {}) {
   const meta = entry.pr_metadata || {};
-  return entry.id || `${meta.repositoryFullName || entry.repository || ''}#${meta.prNumber || entry.pr_number || ''}`;
+  const repo = meta.repositoryFullName || entry.repository || '';
+  const number = meta.prNumber || entry.pr_number || '';
+  if (repo && number) return `${repo}#${number}`;
+  return entry.id || `${entry.created_date || ''}|${entry.input || ''}`;
 }
 
 function itemTime(entry = {}) {
@@ -47,6 +50,6 @@ export function mergePrInboxItems(...groups) {
   return groups
     .flat()
     .filter(Boolean)
-    .filter((entry, index, arr) => arr.findIndex((candidate) => entryKey(candidate) === entryKey(entry)) === index)
-    .sort((a, b) => itemTime(b) - itemTime(a));
+    .sort((a, b) => itemTime(b) - itemTime(a))
+    .filter((entry, index, arr) => arr.findIndex((candidate) => entryKey(candidate) === entryKey(entry)) === index);
 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Inbox, Loader2, Plus, RefreshCw, ShieldAlert, GitPullRequestArrow, FileDiff } from 'lucide-react';
+import { Inbox, Loader2, Plus, PlayCircle, RefreshCw, ShieldAlert, GitPullRequestArrow, FileDiff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { base44 } from '@/api/base44Client';
 import { useToast } from '@/components/ui/use-toast';
@@ -8,6 +8,7 @@ import { fetchPublicGithubPrDiffWithFallback, optionalEntity } from '@/lib/impac
 import { formatPrDiffForImpactAnalysis } from '@/lib/githubPrUtils';
 import { compareProjectAndPrRepository } from '@/lib/repositoryCompatibilityUtils';
 import { mergePrInboxItems, readLocalPrInbox, writeLocalPrInboxItem } from '@/lib/prInboxStorage';
+import { runPrInboxAnalysis } from '@/lib/prInboxAnalysisRunner';
 
 function prLabel(item = {}) {
   const meta = item.pr_metadata || {};
@@ -37,30 +38,41 @@ function normalizeInboxItem(item = {}) {
   };
 }
 
+function canAnalyze(item = {}) {
+  const status = statusLabel(item);
+  return Boolean(item.input) && (status.includes('pending') || status.includes('mismatch') || status === 'unknown');
+}
+
 export default function PullRequestInbox() {
   const { id: projectId } = useParams();
   const { toast } = useToast();
   const [project, setProject] = useState(null);
+  const [files, setFiles] = useState([]);
   const [items, setItems] = useState([]);
   const [prUrl, setPrUrl] = useState('');
   const [loading, setLoading] = useState(true);
   const [queueing, setQueueing] = useState(false);
+  const [analyzingId, setAnalyzingId] = useState(null);
 
   const pendingCount = useMemo(() => items.filter((item) => statusLabel(item).includes('pending') || statusLabel(item).includes('mismatch')).length, [items]);
+  const analyzedCount = useMemo(() => items.filter((item) => statusLabel(item).includes('analyzed')).length, [items]);
 
   const loadInbox = async () => {
     setLoading(true);
     try {
-      const [projects, remoteItems] = await Promise.all([
+      const analysisEntity = optionalEntity('CodebaseAnalysis');
+      const [projects, storedFiles, remoteItems] = await Promise.all([
         base44.entities.CodebaseProject.filter({ id: projectId }).catch(() => []),
-        optionalEntity('CodebaseAnalysis')?.filter
-          ? optionalEntity('CodebaseAnalysis').filter({ project_id: projectId }, 'created_date', 80).catch(() => [])
+        base44.entities.CodeFile.filter({ project_id: projectId }, 'path', 1000).catch(() => []),
+        analysisEntity?.filter
+          ? analysisEntity.filter({ project_id: projectId }, 'created_date', 80).catch(() => [])
           : Promise.resolve([]),
       ]);
       const relevantRemote = (remoteItems || [])
         .filter((item) => item.pr_metadata || item.type === 'pr_inbox_pending' || item.type === 'public_github_pr_impact')
         .map(normalizeInboxItem);
       setProject(projects?.[0] || null);
+      setFiles(storedFiles || []);
       setItems(mergePrInboxItems(relevantRemote, readLocalPrInbox(projectId)).map(normalizeInboxItem));
     } finally {
       setLoading(false);
@@ -132,6 +144,23 @@ export default function PullRequestInbox() {
     }
   };
 
+  const analyzeItem = async (item) => {
+    const itemId = item.id || prLabel(item);
+    setAnalyzingId(itemId);
+    try {
+      const { saved, source, calibrated } = await runPrInboxAnalysis({ projectId, project, files, item, contextDepth: 'balanced' });
+      setItems((prev) => mergePrInboxItems([normalizeInboxItem(saved)], prev).map(normalizeInboxItem));
+      toast({
+        title: 'Internal PR analysis completed',
+        description: `${prLabel(item)} · ${calibrated.riskLevel || 'medium'} risk · ${source}`,
+      });
+    } catch (error) {
+      toast({ title: 'PR analysis failed', description: error?.message || 'The AI request failed.', variant: 'destructive' });
+    } finally {
+      setAnalyzingId(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
@@ -141,7 +170,7 @@ export default function PullRequestInbox() {
             <Inbox className="w-6 h-6" /> Internal PR review queue
           </h1>
           <p className="text-slate-500 mt-1 max-w-2xl">
-            Queue public GitHub pull requests for Codebase Brain analysis. This page stores internal review candidates only; it does not post comments, approve, merge, or change GitHub.
+            Queue and analyze public GitHub pull requests inside Codebase Brain. This page stores internal review reports only; it does not post comments, approve, merge, or change GitHub.
           </p>
         </div>
         <Link to={`/project/${projectId}/impact`}>
@@ -180,8 +209,8 @@ export default function PullRequestInbox() {
           <div className="text-sm text-slate-500">Pending / warning</div>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <div className="text-2xl font-bold text-slate-900">0</div>
-          <div className="text-sm text-slate-500">GitHub writes enabled</div>
+          <div className="text-2xl font-bold text-slate-900">{analyzedCount}</div>
+          <div className="text-sm text-slate-500">Analyzed internally</div>
         </div>
       </div>
 
@@ -195,28 +224,44 @@ export default function PullRequestInbox() {
         </div>
       ) : (
         <div className="space-y-3">
-          {items.map((item) => (
-            <div key={item.id || prLabel(item)} className="bg-white rounded-xl border border-slate-200 p-4">
-              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
-                <div>
-                  <div className="text-xs uppercase tracking-wider text-slate-400 mb-1">{prLabel(item)}</div>
-                  <h2 className="font-semibold text-slate-900">{itemTitle(item)}</h2>
-                  <div className="text-sm text-slate-500 mt-1">
-                    {item.pr_metadata?.changedFilesCount || item.changed_files?.length || 0} files · +{item.pr_metadata?.additions || 0} / -{item.pr_metadata?.deletions || 0} · {statusLabel(item)}
+          {items.map((item) => {
+            const itemId = item.id || prLabel(item);
+            const isAnalyzing = analyzingId === itemId;
+            return (
+              <div key={itemId} className="bg-white rounded-xl border border-slate-200 p-4">
+                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                  <div>
+                    <div className="text-xs uppercase tracking-wider text-slate-400 mb-1">{prLabel(item)}</div>
+                    <h2 className="font-semibold text-slate-900">{itemTitle(item)}</h2>
+                    <div className="text-sm text-slate-500 mt-1">
+                      {item.pr_metadata?.changedFilesCount || item.changed_files?.length || 0} files · +{item.pr_metadata?.additions || 0} / -{item.pr_metadata?.deletions || 0} · {statusLabel(item)}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {itemUrl(item) && <a href={itemUrl(item)} target="_blank" rel="noreferrer"><Button variant="outline" size="sm">GitHub</Button></a>}
+                    {canAnalyze(item) && (
+                      <Button size="sm" onClick={() => analyzeItem(item)} disabled={Boolean(analyzingId)} className="gap-1.5">
+                        {isAnalyzing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <PlayCircle className="w-3.5 h-3.5" />}
+                        Analyze now
+                      </Button>
+                    )}
+                    <Link to={`/project/${projectId}/impact`}><Button variant="outline" size="sm">Manual</Button></Link>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  {itemUrl(item) && <a href={itemUrl(item)} target="_blank" rel="noreferrer"><Button variant="outline" size="sm">GitHub</Button></a>}
-                  <Link to={`/project/${projectId}/impact`}><Button size="sm">Analyze</Button></Link>
-                </div>
+                {item.result && (
+                  <details className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <summary className="cursor-pointer text-sm font-medium text-slate-700">Show internal analysis</summary>
+                    <pre className="mt-3 whitespace-pre-wrap text-xs text-slate-700 leading-relaxed">{item.result}</pre>
+                  </details>
+                )}
+                {item.repository_compatibility?.status === 'mismatch' && (
+                  <div className="mt-3 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
+                    Repository mismatch: this PR may not belong to the selected Codebase Brain project.
+                  </div>
+                )}
               </div>
-              {item.repository_compatibility?.status === 'mismatch' && (
-                <div className="mt-3 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
-                  Repository mismatch: this PR may not belong to the selected Codebase Brain project.
-                </div>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
