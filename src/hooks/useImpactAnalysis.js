@@ -4,14 +4,9 @@ import { useToast } from "@/components/ui/use-toast";
 import { buildCodeRelations, relatedPathsForChangedFiles, summarizeCodeGraph } from "@/lib/codeGraphUtils";
 import { buildContextPack } from "@/lib/contextPackBuilder";
 import { resolveContextDepthPreset } from "@/lib/contextRelevanceScoring";
-import {
-  calibrateImpactAnalysisOutput,
-  compareProjectAndPrRepository,
-  extractChangedFiles,
-  formatPrDiffForImpactAnalysis,
-  heuristicRiskSignals,
-  initialRiskLevel,
-} from "@/lib/impactAnalysisUtils";
+import { calibrateImpactAnalysisOutput, extractChangedFiles, heuristicRiskSignals, initialRiskLevel } from "@/lib/impactAnalysisUtils";
+import { compareProjectAndPrRepository } from "@/lib/repositoryCompatibilityUtils";
+import { formatPrDiffForImpactAnalysis } from "@/lib/githubPrUtils";
 import { buildImpactAnalysisPromptWithDepth } from "@/lib/impactAnalysisPromptBuilder";
 import { formatRiskMemoryForPrompt, mergeAnalysisHistories, readLocalAnalysisHistory } from "@/lib/analysisHistoryUtils";
 import { formatProjectRulesForPrompt, getProjectRulesForRuntime } from "@/lib/projectRulesUtils";
