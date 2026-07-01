@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { base44 } from '@/api/base44Client';
+import { buildRecordSourceSummary } from '@/lib/recordSourceUtils';
 
 export function optionalEntity(entityName) {
   try {
@@ -20,10 +21,10 @@ export function canWriteEntity(entityName) {
 }
 
 export function entitySourceLabel({ remoteCount = 0, localCount = 0 } = {}) {
-  if (remoteCount > 0 && localCount > 0) return 'persisted + local fallback';
-  if (remoteCount > 0) return 'persisted storage';
-  if (localCount > 0) return 'local fallback';
-  return 'no stored records';
+  return buildRecordSourceSummary({
+    remoteRecords: new Array(Math.max(0, remoteCount)),
+    localRecords: new Array(Math.max(0, localCount)),
+  }).label;
 }
 
 export async function safeFilterEntity(entityName, filters = {}, sort = null, limit = null) {
