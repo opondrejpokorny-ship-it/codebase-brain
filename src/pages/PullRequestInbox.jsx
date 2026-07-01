@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Inbox, Loader2, Plus, PlayCircle, RefreshCw, ShieldAlert, GitPullRequestArrow, FileDiff } from 'lucide-react';
+import { Clipboard, Inbox, Loader2, MessageSquare, Plus, PlayCircle, RefreshCw, ShieldAlert, GitPullRequestArrow, FileDiff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { base44 } from '@/api/base44Client';
 import { useToast } from '@/components/ui/use-toast';
@@ -9,6 +9,7 @@ import { formatPrDiffForImpactAnalysis } from '@/lib/githubPrUtils';
 import { compareProjectAndPrRepository } from '@/lib/repositoryCompatibilityUtils';
 import { mergePrInboxItems, readLocalPrInbox, writeLocalPrInboxItem } from '@/lib/prInboxStorage';
 import { runPrInboxAnalysis } from '@/lib/prInboxAnalysisRunner';
+import { buildPrCommentDraft, hasPrCommentDraft } from '@/lib/prCommentDraftUtils';
 
 function prLabel(item = {}) {
   const meta = item.pr_metadata || {};
@@ -53,6 +54,8 @@ export default function PullRequestInbox() {
   const [loading, setLoading] = useState(true);
   const [queueing, setQueueing] = useState(false);
   const [analyzingId, setAnalyzingId] = useState(null);
+  const [draftItemId, setDraftItemId] = useState(null);
+  const [copyingDraftId, setCopyingDraftId] = useState(null);
 
   const pendingCount = useMemo(() => items.filter((item) => statusLabel(item).includes('pending') || statusLabel(item).includes('mismatch')).length, [items]);
   const analyzedCount = useMemo(() => items.filter((item) => statusLabel(item).includes('analyzed')).length, [items]);
@@ -161,6 +164,21 @@ export default function PullRequestInbox() {
     }
   };
 
+  const copyCommentDraft = async (item) => {
+    const itemId = item.id || prLabel(item);
+    const draft = buildPrCommentDraft(item);
+    setCopyingDraftId(itemId);
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard API is not available in this browser.');
+      await navigator.clipboard.writeText(draft);
+      toast({ title: 'Comment draft copied', description: 'No GitHub write was performed.' });
+    } catch (error) {
+      toast({ title: 'Copy failed', description: error?.message || 'Select the draft text manually and copy it.', variant: 'destructive' });
+    } finally {
+      setCopyingDraftId(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
@@ -170,7 +188,7 @@ export default function PullRequestInbox() {
             <Inbox className="w-6 h-6" /> Internal PR review queue
           </h1>
           <p className="text-slate-500 mt-1 max-w-2xl">
-            Queue and analyze public GitHub pull requests inside Codebase Brain. This page stores internal review reports only; it does not post comments, approve, merge, or change GitHub.
+            Queue and analyze public GitHub pull requests inside Codebase Brain. This page stores internal review reports and copyable comment drafts only; it does not post comments, approve, merge, or change GitHub.
           </p>
         </div>
         <Link to={`/project/${projectId}/impact`}>
@@ -227,6 +245,9 @@ export default function PullRequestInbox() {
           {items.map((item) => {
             const itemId = item.id || prLabel(item);
             const isAnalyzing = analyzingId === itemId;
+            const draftOpen = draftItemId === itemId;
+            const draftText = hasPrCommentDraft(item) ? buildPrCommentDraft(item) : '';
+            const isCopying = copyingDraftId === itemId;
             return (
               <div key={itemId} className="bg-white rounded-xl border border-slate-200 p-4">
                 <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
@@ -245,9 +266,33 @@ export default function PullRequestInbox() {
                         Analyze now
                       </Button>
                     )}
+                    {hasPrCommentDraft(item) && (
+                      <Button variant="outline" size="sm" onClick={() => setDraftItemId(draftOpen ? null : itemId)} className="gap-1.5">
+                        <MessageSquare className="w-3.5 h-3.5" /> Comment draft
+                      </Button>
+                    )}
                     <Link to={`/project/${projectId}/impact`}><Button variant="outline" size="sm">Manual</Button></Link>
                   </div>
                 </div>
+                {draftOpen && draftText && (
+                  <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3 space-y-2">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                      <div>
+                        <h3 className="text-sm font-medium text-slate-800">Copyable GitHub comment draft</h3>
+                        <p className="text-xs text-slate-500">This only copies text. Codebase Brain still performs no GitHub write action.</p>
+                      </div>
+                      <Button variant="outline" size="sm" onClick={() => copyCommentDraft(item)} disabled={isCopying} className="gap-1.5">
+                        {isCopying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Clipboard className="w-3.5 h-3.5" />}
+                        Copy draft
+                      </Button>
+                    </div>
+                    <textarea
+                      readOnly
+                      value={draftText}
+                      className="w-full min-h-72 rounded-lg border border-slate-200 bg-slate-50 p-3 font-mono text-xs text-slate-700 outline-none"
+                    />
+                  </div>
+                )}
                 {item.result && (
                   <details className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
                     <summary className="cursor-pointer text-sm font-medium text-slate-700">Show internal analysis</summary>
