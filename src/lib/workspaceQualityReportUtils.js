@@ -76,6 +76,13 @@ export function buildWorkspaceQualityMarkdownReport({ overview = {}, snapshots =
   return markdown;
 }
 
+export async function copyWorkspaceQualityMarkdownReport({ overview = {}, snapshots = [], options = {} } = {}) {
+  if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) return false;
+  const markdown = buildWorkspaceQualityMarkdownReport({ overview, snapshots, options });
+  await navigator.clipboard.writeText(markdown);
+  return true;
+}
+
 export function downloadWorkspaceQualityMarkdownReport({ overview = {}, snapshots = [], options = {} } = {}) {
   if (typeof document === 'undefined') return false;
   const markdown = buildWorkspaceQualityMarkdownReport({ overview, snapshots, options });
