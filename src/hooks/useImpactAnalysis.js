@@ -128,9 +128,10 @@ export function useImpactAnalysis(projectId) {
 
     try {
       const preChangedFiles = extractChangedFiles(changeInput);
+      const preChangedSymbols = detectChangedSymbols({ files, changedFiles: preChangedFiles, diffText: changeInput });
       const preSignals = heuristicRiskSignals(changeInput, preChangedFiles);
       const preRelatedPaths = relatedPathsForChangedFiles(codeRelations, preChangedFiles);
-      const riskMemoryText = formatRiskMemoryForPrompt(analyses, preChangedFiles, preRelatedPaths, preSignals);
+      const riskMemoryText = formatRiskMemoryForPrompt(analyses, preChangedFiles, preRelatedPaths, preSignals, preChangedSymbols);
       const projectRulesText = formatProjectRulesForPrompt(getProjectRulesForRuntime(projectId));
       const payload = buildImpactAnalysisPromptWithDepth({ project, files, changeInput, relations: codeRelations, riskMemoryText, projectRulesText, contextDepth });
       const answer = await base44.integrations.Core.InvokeLLM({ prompt: payload.prompt });
