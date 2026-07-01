@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { AlertTriangle, CheckCircle, Clipboard, Inbox, Loader2, Lock, MessageSquare, Network, Plus, PlayCircle, RefreshCw, RotateCcw, Save, ShieldAlert, GitPullRequestArrow, FileDiff } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Clipboard, Inbox, Loader2, Lock, MessageSquare, Plus, RefreshCw, RotateCcw, Save, ShieldAlert, GitPullRequestArrow, FileDiff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
+import PrInboxItemCard from '@/components/projects/pr-inbox/PrInboxItemCard';
 import { usePrInboxItems } from '@/hooks/usePrInboxItems';
 import { fetchPublicGithubPrDiffWithFallback, optionalEntity } from '@/lib/impactAnalysisRuntimeUtils';
 import { formatPrDiffForImpactAnalysis } from '@/lib/githubPrUtils';
@@ -12,21 +13,12 @@ import { runPrInboxAnalysis } from '@/lib/prInboxAnalysisRunner';
 import { buildPrCommentDraft, hasPrCommentDraft } from '@/lib/prCommentDraftUtils';
 import { readLocalCommentApproval, summarizeCommentApprovals, writeLocalCommentApproval } from '@/lib/prCommentApprovalUtils';
 import { buildReadinessRows, summarizeReadiness } from '@/lib/readinessPreviewUtils';
-import { prAnalysisKey } from '@/lib/prAnalysisOverlayUtils';
 
 function prLabel(item = {}) {
   const meta = item.pr_metadata || {};
   const repo = meta.repositoryFullName || item.repository || 'unknown/repo';
   const number = meta.prNumber || item.pr_number || '?';
   return `${repo}#${number}`;
-}
-
-function itemTitle(item = {}) {
-  return item.pr_metadata?.title || item.title || 'Untitled pull request';
-}
-
-function itemUrl(item = {}) {
-  return item.pr_metadata?.htmlUrl || item.html_url || '';
 }
 
 function statusLabel(item = {}) {
@@ -40,10 +32,6 @@ function normalizeInboxItem(item = {}) {
     ...item,
     inbox_status: item.inbox_status || (item.risk_level === 'pending' ? 'pending_review' : item.risk_level || 'unknown'),
   };
-}
-
-function graphLensUrl(projectId, item = {}) {
-  return `/project/${projectId}/graph?pr=${encodeURIComponent(prAnalysisKey(item))}`;
 }
 
 function canAnalyze(item = {}) {
@@ -270,28 +258,20 @@ export default function PullRequestInbox() {
             const checks = rowsForItem(item, approval);
             const readiness = summarizeReadiness(checks);
             return (
-              <div key={itemId} className="bg-white rounded-xl border border-slate-200 p-4">
-                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
-                  <div>
-                    <div className="text-xs uppercase tracking-wider text-slate-400 mb-1">{prLabel(item)}</div>
-                    <h2 className="font-semibold text-slate-900">{itemTitle(item)}</h2>
-                    <div className="text-sm text-slate-500 mt-1">
-                      {item.pr_metadata?.changedFilesCount || item.changed_files?.length || 0} files · +{item.pr_metadata?.additions || 0} / -{item.pr_metadata?.deletions || 0} · {statusLabel(item)}
-                    </div>
+              <div key={itemId} className="space-y-3">
+                <PrInboxItemCard
+                  projectId={projectId}
+                  item={item}
+                  canAnalyze={canAnalyze(item)}
+                  onAnalyze={analyzeItem}
+                  analyzing={isAnalyzing || Boolean(analyzingId)}
+                />
+                {(isApproved || hasPrCommentDraft(item)) && (
+                  <div className="bg-white rounded-xl border border-slate-200 p-3 flex flex-wrap gap-2 items-center">
                     {isApproved && (
-                      <div className="inline-flex items-center gap-1.5 mt-2 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 border border-emerald-200">
+                      <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 border border-emerald-200">
                         <CheckCircle className="w-3.5 h-3.5" /> Comment draft approved
                       </div>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {itemUrl(item) && <a href={itemUrl(item)} target="_blank" rel="noreferrer"><Button variant="outline" size="sm">GitHub</Button></a>}
-                    <Link to={graphLensUrl(projectId, item)}><Button variant="outline" size="sm" className="gap-1.5"><Network className="w-3.5 h-3.5" /> Graph Lens</Button></Link>
-                    {canAnalyze(item) && (
-                      <Button size="sm" onClick={() => analyzeItem(item)} disabled={Boolean(analyzingId)} className="gap-1.5">
-                        {isAnalyzing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <PlayCircle className="w-3.5 h-3.5" />}
-                        Analyze now
-                      </Button>
                     )}
                     {hasPrCommentDraft(item) && (
                       <Button variant="outline" size="sm" onClick={() => setDraftItemId(draftOpen ? null : itemId)} className="gap-1.5">
@@ -305,7 +285,7 @@ export default function PullRequestInbox() {
                     )}
                     <Link to={`/project/${projectId}/impact`}><Button variant="outline" size="sm">Manual</Button></Link>
                   </div>
-                </div>
+                )}
                 {draftOpen && draftText && (
                   <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3 space-y-2">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
