@@ -1,4 +1,5 @@
 import { summarizeCodeGraph } from "@/lib/codeGraphUtils";
+import { buildProductAreas, formatProductAreasMarkdown } from "@/lib/productContextUtils";
 import { extractProjectSymbols, summarizeSymbols } from "@/lib/symbolExtractionUtils";
 
 function unique(values) {
@@ -10,11 +11,21 @@ function folderName(path = "") {
   return parts.length > 1 ? parts.slice(0, -1).join("/") : "root";
 }
 
+function graphStatsMarkdown(graphSummary = {}, symbolSummary = {}) {
+  return `- Files touched by graph: ${graphSummary.touchedFiles || 0}
+- Relations: ${graphSummary.totalRelations || 0}
+- Internal relations: ${graphSummary.internalRelations || 0}
+- External imports: ${graphSummary.externalImports || 0}
+- Unresolved imports: ${(graphSummary.unresolvedRelativeImports || 0) + (graphSummary.aliasUnresolvedImports || 0)}
+- Symbols: ${symbolSummary.totalSymbols || 0}`;
+}
+
 export function buildArchitectureFacts({ project, files = [], relations = [] }) {
   const paths = files.map((file) => file.path || "").filter(Boolean);
   const graphSummary = summarizeCodeGraph(relations);
   const symbols = extractProjectSymbols(files);
   const symbolSummary = summarizeSymbols(symbols);
+  const productAreas = buildProductAreas({ files, relations, symbols });
   const externalPackages = unique(relations.filter((relation) => relation.target_kind === "external_package").map((relation) => relation.package_name || relation.import_path)).slice(0, 40);
 
   const frontendFolders = unique(paths.filter((path) => /src\/pages|src\/components|app\/|pages\/|components\//i.test(path)).map(folderName)).slice(0, 20);
@@ -32,6 +43,7 @@ export function buildArchitectureFacts({ project, files = [], relations = [] }) 
     fileCount: files.length,
     graphSummary,
     symbolSummary,
+    productAreas,
     frontendFolders,
     backendFolders,
     routeFiles,
@@ -56,5 +68,44 @@ export function buildArchitectureFacts({ project, files = [], relations = [] }) 
 }
 
 export function formatArchitectureFactsMarkdown(facts) {
-  return `## What this project is\n${facts.projectName}${facts.repositoryUrl ? `\n${facts.repositoryUrl}` : ""}\n\n## Tech stack\n${facts.detectedStack.length ? facts.detectedStack.join(", ") : "Unknown from stored sample"}\n\n## Main folders\nFrontend: ${facts.frontendFolders.join(", ") || "Not detected"}\nBackend/API: ${facts.backendFolders.join(", ") || "Not detected"}\n\n## Frontend structure\n${facts.routeFiles.slice(0, 12).map((path) => `- ${path}`).join("\n") || "No route/page files detected."}\n\n## Backend/API structure\n${facts.backendFolders.map((folder) => `- ${folder}`).join("\n") || "No backend/API folders detected."}\n\n## Data/entities\n${facts.dataFiles.slice(0, 12).map((path) => `- ${path}`).join("\n") || "No data/entity files detected."}\n\n## Integrations\n${facts.integrationFiles.slice(0, 12).map((path) => `- ${path}`).join("\n") || "No integration files detected."}\n\n## External packages\n${facts.externalPackages.slice(0, 20).join(", ") || "No external packages detected."}\n\n## High-risk areas\n${facts.highRiskFiles.slice(0, 16).map((path) => `- ${path}`).join("\n") || "No high-risk paths detected from stored sample."}\n\n## Symbols\n${facts.topSymbols.slice(0, 20).map((symbol) => `- ${symbol.kind}: ${symbol.name} (${symbol.file})`).join("\n") || "No symbols detected."}\n\n## Unknowns / missing context\n${facts.warnings.map((warning) => `- ${warning}`).join("\n") || "- No major missing-context warning detected."}`;
+  return `## What this project is
+${facts.projectName}${facts.repositoryUrl ? `
+${facts.repositoryUrl}` : ""}
+
+## Tech stack
+${facts.detectedStack.length ? facts.detectedStack.join(", ") : "Unknown from stored sample"}
+
+## Architecture graph stats
+${graphStatsMarkdown(facts.graphSummary, facts.symbolSummary)}
+
+## Product / business areas
+${formatProductAreasMarkdown(facts.productAreas)}
+
+## Main folders
+Frontend: ${facts.frontendFolders.join(", ") || "Not detected"}
+Backend/API: ${facts.backendFolders.join(", ") || "Not detected"}
+
+## Frontend structure
+${facts.routeFiles.slice(0, 12).map((path) => `- ${path}`).join("\n") || "No route/page files detected."}
+
+## Backend/API structure
+${facts.backendFolders.map((folder) => `- ${folder}`).join("\n") || "No backend/API folders detected."}
+
+## Data/entities
+${facts.dataFiles.slice(0, 12).map((path) => `- ${path}`).join("\n") || "No data/entity files detected."}
+
+## Integrations
+${facts.integrationFiles.slice(0, 12).map((path) => `- ${path}`).join("\n") || "No integration files detected."}
+
+## External packages
+${facts.externalPackages.slice(0, 20).join(", ") || "No external packages detected."}
+
+## High-risk areas
+${facts.highRiskFiles.slice(0, 16).map((path) => `- ${path}`).join("\n") || "No high-risk paths detected from stored sample."}
+
+## Symbols
+${facts.topSymbols.slice(0, 20).map((symbol) => `- ${symbol.kind}: ${symbol.name} (${symbol.file})`).join("\n") || "No symbols detected."}
+
+## Unknowns / missing context
+${facts.warnings.map((warning) => `- ${warning}`).join("\n") || "- No major missing-context warning detected."}`;
 }
