@@ -1,0 +1,110 @@
+const STORAGE_PREFIX = "codebase-brain:decision-memory:";
+const DECISION_SCHEMA_VERSION = "decision-memory-v1";
+
+function canUseLocalStorage() {
+  return typeof window !== "undefined" && Boolean(window.localStorage);
+}
+
+function storageKey(projectId = "global") {
+  return `${STORAGE_PREFIX}${projectId || "global"}`;
+}
+
+function parseJsonSafe(value, fallback) {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function stableId(value = "") {
+  const base = String(value || "decision").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80);
+  return `${base || "decision"}-${Date.now()}`;
+}
+
+export function readDecisionMemory(projectId) {
+  if (!canUseLocalStorage()) return [];
+  return parseJsonSafe(window.localStorage.getItem(storageKey(projectId)), []) || [];
+}
+
+export function writeDecisionMemory(projectId, decisions = []) {
+  if (!canUseLocalStorage()) return false;
+  window.localStorage.setItem(storageKey(projectId), JSON.stringify(decisions.slice(0, 200), null, 2));
+  return true;
+}
+
+export function createDecisionRecord({ projectId, title, decision, rationale = "", status = "accepted", files = [], symbols = [], source = "manual", tags = [] } = {}) {
+  const createdAt = nowIso();
+  return {
+    id: stableId(title || decision),
+    schema_version: DECISION_SCHEMA_VERSION,
+    project_id: projectId || null,
+    title: title || "Untitled decision",
+    decision: decision || "",
+    rationale,
+    status,
+    files: [...new Set(files.filter(Boolean))].slice(0, 40),
+    symbols: [...new Set(symbols.filter(Boolean))].slice(0, 40),
+    source,
+    tags: [...new Set(tags.filter(Boolean))].slice(0, 20),
+    created_date: createdAt,
+    updated_date: createdAt,
+  };
+}
+
+export function addDecisionMemory(projectId, decisionInput = {}) {
+  const record = createDecisionRecord({ ...decisionInput, projectId });
+  const current = readDecisionMemory(projectId);
+  const next = [record, ...current].slice(0, 200);
+  writeDecisionMemory(projectId, next);
+  return record;
+}
+
+export function updateDecisionMemory(projectId, decisionId, patch = {}) {
+  const current = readDecisionMemory(projectId);
+  const next = current.map((decision) => decision.id === decisionId ? { ...decision, ...patch, updated_date: nowIso() } : decision);
+  writeDecisionMemory(projectId, next);
+  return next.find((decision) => decision.id === decisionId) || null;
+}
+
+export function decisionsForFiles(decisions = [], filePaths = []) {
+  const wanted = new Set(filePaths.filter(Boolean));
+  if (!wanted.size) return [];
+  return decisions.filter((decision) => (decision.files || []).some((file) => wanted.has(file)));
+}
+
+export function formatDecisionMemoryForPrompt(decisions = [], { changedFiles = [], limit = 12 } = {}) {
+  const relevant = changedFiles.length ? decisionsForFiles(decisions, changedFiles) : decisions;
+  const selected = (relevant.length ? relevant : decisions).slice(0, limit);
+  if (!selected.length) return "No project decisions are stored yet.";
+
+  return selected.map((decision) => {
+    const files = decision.files?.length ? `\nFiles: ${decision.files.slice(0, 8).join(", ")}` : "";
+    const tags = decision.tags?.length ? `\nTags: ${decision.tags.join(", ")}` : "";
+    return `- ${decision.title} [${decision.status || "accepted"}]\nDecision: ${decision.decision}\nRationale: ${decision.rationale || "Not recorded."}${files}${tags}`;
+  }).join("\n");
+}
+
+export function decisionMemoryToAdrMarkdown(decision = {}) {
+  return `# ADR: ${decision.title || "Untitled decision"}\n\nStatus: ${decision.status || "accepted"}\nDate: ${(decision.created_date || nowIso()).slice(0, 10)}\n\n## Context\n\n${decision.rationale || "Context was not recorded."}\n\n## Decision\n\n${decision.decision || "Decision was not recorded."}\n\n## Scope\n\n${(decision.files || []).map((file) => `- ${file}`).join("\n") || "No files linked."}\n\n## Tags\n\n${(decision.tags || []).join(", ") || "None"}\n`;
+}
+
+export function buildDecisionCandidateFromImpactAnalysis({ result = "", changedFiles = [], riskLevel = "medium", reviewVerdict = null } = {}) {
+  const safeResult = String(result || "");
+  const summary = safeResult.match(/## Summary\s+([\s\S]*?)(?=\n##\s+|$)/i)?.[1]?.trim() || safeResult.slice(0, 500);
+  const tests = safeResult.match(/## Recommended tests\s+([\s\S]*?)(?=\n##\s+|$)/i)?.[1]?.trim() || "";
+
+  return createDecisionRecord({
+    title: `Review follow-up: ${reviewVerdict || riskLevel}`,
+    decision: summary || "Store this impact-analysis result as project memory.",
+    rationale: tests ? `Recommended tests from review:\n${tests}` : "Created from an impact-analysis report.",
+    status: reviewVerdict === "BLOCK" ? "proposed" : "accepted",
+    files: changedFiles,
+    source: "impact_analysis",
+    tags: ["impact-analysis", riskLevel, reviewVerdict].filter(Boolean),
+  });
+}
