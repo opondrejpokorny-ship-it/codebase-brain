@@ -45,11 +45,22 @@ async function persistQueueToProjectMetadata(projectId, queue = [], project = nu
   }
 }
 
+function normalizeTarget(target = "") {
+  return String(target || "")
+    .replace(/^@\//, "src/")
+    .replace(/^~\//, "src/")
+    .replace(/^\.\//, "")
+    .replace(/\.(js|jsx|ts|tsx)$/i, "")
+    .replace(/\/index$/i, "")
+    .trim();
+}
+
 function normalizeQueueItem(item = {}) {
   const raw = /** @type {any} */ (item);
-  if (!raw?.target) return null;
+  const target = normalizeTarget(raw?.target || "");
+  if (!target) return null;
   return {
-    target: raw.target,
+    target,
     source_file: raw.source_file || raw.sourceFile || "",
     import_path: raw.import_path || raw.importPath || "",
     relation_type: raw.relation_type || raw.relationType || "missing_context",
@@ -90,14 +101,12 @@ export function readMissingContextQueue(projectId) {
 
 export function readMissingContextQueueForProject(projectId, project = null) {
   const projectQueue = readProjectMissingContextQueue(project);
-  if (projectQueue.length > 0) return projectQueue;
-  return readMissingContextQueue(projectId);
+  const localQueue = readMissingContextQueue(projectId);
+  return dedupeMissingContextQueue([...projectQueue, ...localQueue]);
 }
 
 export function readBestMissingContextQueue(projectId, project = null) {
-  const projectQueue = readProjectMissingContextQueue(project);
-  if (projectQueue.length > 0) return projectQueue;
-  const direct = readMissingContextQueue(projectId);
+  const direct = readMissingContextQueueForProject(projectId, project);
   if (direct.length > 0) return direct;
   const all = readAllMissingContextQueues();
   const queues = Object.values(all).filter((queue) => Array.isArray(queue) && queue.length > 0);
