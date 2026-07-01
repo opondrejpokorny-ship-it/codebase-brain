@@ -1,5 +1,6 @@
 import { buildCodeRelations, relatedPathsForChangedFiles } from "@/lib/codeGraphUtils";
 import { buildContextPack, formatContextPackForPrompt } from "@/lib/contextPackBuilder";
+import { detectChangedSymbols, formatChangedSymbols } from "@/lib/changedSymbolUtils";
 import { extractChangedFiles, heuristicRiskSignals, initialRiskLevel } from "@/lib/impactAnalysisUtils";
 import { resolveContextDepthPreset } from "@/lib/contextRelevanceScoring";
 
@@ -52,6 +53,7 @@ function missingContextLine(relation) {
 
 export function buildImpactAnalysisPromptWithDepth({ project, files = [], changeInput = "", relations = null, riskMemoryText = "", projectRulesText = "", contextDepth = "balanced" }) {
   const changedFiles = extractChangedFiles(changeInput);
+  const changedSymbols = detectChangedSymbols({ files, changedFiles, diffText: changeInput });
   const codeRelations = relations || buildCodeRelations(files);
   const heuristicRisk = initialRiskLevel(changeInput, changedFiles, codeRelations);
   const signals = heuristicRiskSignals(changeInput, changedFiles);
@@ -68,6 +70,7 @@ export function buildImpactAnalysisPromptWithDepth({ project, files = [], change
 
   return {
     changedFiles,
+    changedSymbols,
     heuristicRisk,
     signals,
     relatedPaths,
@@ -75,16 +78,16 @@ export function buildImpactAnalysisPromptWithDepth({ project, files = [], change
     relevantFiles: contextPack.selectedFiles,
     contextPack,
     contextCoverage,
-    prompt: `You are Codebase Brain, a careful senior engineer reviewing a PR/diff before merge.
+    prompt: `You are Codebase Brain, a careful senior engineer reviewing a submitted diff before merge.
 
 Rules:
-- Write the entire report in English only.
-- Answer only from the provided project context, selected files, submitted diff/change list, graph relationships, risk memory, and project rules.
-- Do not claim you ran tests.
-- Always mention missing context.
+- Write the report in English only.
+- Use only the provided project context, selected files, submitted diff, graph relationships, risk memory, project rules, and changed symbols.
+- Do not claim tests were run.
+- Mention missing context.
 - Use concrete file paths.
-- Do not invent direct dependencies or related files. ${confirmedRelatedInstruction}
-- If Context coverage below is not complete, the Missing context section must mention the coverage status and suggested missing import targets.
+- When changed symbols are available, describe the likely impact at symbol level.
+- ${confirmedRelatedInstruction}
 
 Return structured Markdown with exactly these sections:
 
@@ -110,6 +113,8 @@ Detected stack: ${(project?.detected_stack || []).join(", ") || "Unknown"}
 
 DETERMINISTIC PRE-SCAN:
 Changed files detected: ${changedFiles.length ? changedFiles.join(", ") : "None detected from input"}
+Changed symbols detected:
+${formatChangedSymbols(changedSymbols)}
 Changed files present in stored sample: ${coverage.present.length ? coverage.present.join(", ") : "None"}
 Changed files missing from stored sample: ${coverage.missing.length ? coverage.missing.join(", ") : "None"}
 Initial heuristic risk: ${heuristicRisk}
