@@ -56,26 +56,33 @@ export function extractChangedFiles(changeInput = "") {
 
 export function heuristicRiskSignals(changeInput = "", changedFiles = []) {
   const text = normalize(`${changeInput}\n${changedFiles.join("\n")}`);
+  const fileText = normalize(changedFiles.join("\n"));
   const signals = [];
 
   const checks = [
-    { key: "core_context", label: "Core context routing or impact engine", pattern: /contextpack|context pack|context routing|compact context|selected context|impactanalysis|impact analysis|impact engine|codegraph|code graph|tokenbudget|risk level|related files/ },
-    { key: "payments", label: "Payment or billing flow", pattern: /payment|billing|checkout|invoice|stripe|comgate|credit|membership|subscription|refund/ },
-    { key: "auth", label: "Authentication or authorization", pattern: /auth|login|logout|session|jwt|permission|role|admin|protectedroute/ },
-    { key: "database", label: "Database schema or persistence", pattern: /prisma|schema|migration|model|entity|database|db\b|sql|storage/ },
-    { key: "api", label: "API or backend function", pattern: /api|route|endpoint|webhook|function|server|backend/ },
-    { key: "env", label: "Environment or secrets", pattern: /\.env|secret|api_key|apikey|credential|process\.env|deno\.env/ },
-    { key: "routing", label: "Routing or navigation", pattern: /router|route|navigate|redirect|pathname|app\.jsx|layout/ },
-    { key: "delete", label: "Deletion or destructive operation", pattern: /delete|remove|destroy|drop|truncate/ },
-    { key: "validation", label: "Validation or guard logic changed", pattern: /validate|validation|required|guard|permission|role|if\s*\(|throw new error/ },
-    { key: "tests", label: "Tests changed", pattern: /test|spec|__tests__|jest|vitest|playwright|cypress/ },
+    { label: "Core context routing or impact engine", pattern: /contextpack|context pack|context routing|compact context|selected context|impactanalysis|impact analysis|impact engine|codegraph|code graph|tokenbudget|risk level|related files/ },
+    { label: "Payment or billing flow", pattern: /payment|billing|checkout|invoice|stripe|comgate|credit|membership|subscription|refund/ },
+    { label: "Authentication or authorization", pattern: /auth|login|logout|session|jwt|permission|role|admin|protectedroute/ },
+    { label: "Database schema or persistence", pattern: /prisma|schema|migration|model|entity|database|db\b|sql|storage/ },
+    { label: "Environment or secrets", pattern: /\.env|secret|api_key|apikey|credential|process\.env|deno\.env/ },
+    { label: "Deletion or destructive operation", pattern: /delete|remove|destroy|drop|truncate/ },
+    { label: "Validation or guard logic changed", pattern: /validate|validation|required|guard|permission|role|throw new error/ },
+    { label: "Tests changed", pattern: /test|spec|__tests__|jest|vitest|playwright|cypress/ },
   ];
 
   for (const check of checks) {
     if (check.pattern.test(text)) signals.push(check.label);
   }
 
-  return signals;
+  if (/\b(api|endpoint|webhook|server|backend|base44\/functions|functions\/|src\/api)\b/.test(text)) {
+    signals.push("API or backend function");
+  }
+
+  if (/\b(router|route|routes|navigate|redirect|pathname|layout|react-router|src\/routes)\b/.test(text) || /src\/pages\//.test(fileText)) {
+    signals.push("Routing or navigation");
+  }
+
+  return unique(signals);
 }
 
 export function initialRiskLevel(changeInput = "", changedFiles = [], relations = []) {
@@ -267,113 +274,95 @@ Risk calibration:
 Return structured Markdown with exactly these sections:
 
 ## Summary
-Short explanation of the change.
-
 ## Risk level
-Low / Medium / High
-
 ## Why this risk level
-Bullet points.
-
 ## Changed files
-List changed files. Mark files missing from stored context when applicable.
-
 ## Related files
-Only graph-confirmed related files. If none are confirmed, say none confirmed.
-
 ## Context files reviewed
-List selected context files and why they were selected.
-
 ## Risk memory influence
-Explain whether previous analyses mention the same changed files, related files, risk signals, or recommended tests. If there is no history, say no previous analysis history is available. Do not overstate this section.
-
 ## Project rules check
-Check the submitted change against active project rules and ADRs. Say whether each relevant rule appears satisfied, potentially violated, or cannot be evaluated from the available context.
-
 ## Affected flows
-User-facing or backend flows that may be affected.
-
 ## Main risks
-Concrete risks.
-
 ## Recommended tests
-Manual and automated tests to run. Prefer tests that match repeated Risk Memory patterns when relevant and project rules when relevant.
-
 ## Regression checklist
-Step-by-step checklist before merge.
-
 ## Missing context
-What the system could not know from imported files. Include Context coverage and Missing direct import targets when provided.
-
 ## Safe to merge?
-One of:
-- Looks safe after listed checks
-- Needs review
-- High risk, do not merge without deeper review
 
-PROJECT:
-Name: ${project?.name || "Unknown"}
-Repository URL: ${project?.repository_url || "Not provided"}
-Detected stack: ${(project?.detected_stack || []).join(", ") || "Unknown"}
+Project:
+${project?.name || "Unknown project"}
 
-DETERMINISTIC PRE-SCAN:
-Changed files detected: ${changedFiles.length ? changedFiles.join(", ") : "None detected from input"}
-Changed files present in stored sample: ${coverage.present.length ? coverage.present.join(", ") : "None"}
-Changed files missing from stored sample: ${coverage.missing.length ? coverage.missing.join(", ") : "None"}
-Initial heuristic risk: ${heuristicRisk}
-Risk signals: ${signals.length ? signals.join(", ") : "None"}
-Graph-confirmed related files: ${relatedPaths.length ? relatedPaths.join(", ") : "None"}
-Selected context files reviewed:
-${selectedFileReasons(contextPack) || "None"}
-Context token estimate: selected ${contextPack.efficiency.selectedTokens}, full repo estimate ${contextPack.efficiency.fullRepoTokens}, estimated savings ${contextPack.efficiency.savingsPercent}%
-Context coverage: ${contextCoverage.status} · ${contextCoverage.score}%
-Resolved internal imports from changed files: ${contextCoverage.resolvedInternal}/${contextCoverage.total}
+Project summary:
+${project?.summary || "No project summary available."}
+
+Detected stack:
+${(project?.detected_stack || []).join(", ") || "unknown"}
+
+Submitted change:
+${String(changeInput || "").slice(0, 12000)}
+
+Changed files detected:
+${changedFiles.length ? changedFiles.map((file) => `- ${file}`).join("\n") : "None detected"}
+
+Deterministic pre-scan risk:
+${heuristicRisk}
+
+Risk signals:
+${signals.length ? signals.map((signal) => `- ${signal}`).join("\n") : "None"}
+
+Graph-confirmed related files:
+${relatedPaths.length ? relatedPaths.map((file) => `- ${file}`).join("\n") : "None"}
+
+Changed file coverage in stored context:
+Present:
+${coverage.present.length ? coverage.present.map((file) => `- ${file}`).join("\n") : "None"}
+Missing:
+${coverage.missing.length ? coverage.missing.map((file) => `- ${file}`).join("\n") : "None"}
+
+Context coverage:
+Status: ${contextCoverage.status}
+Score: ${contextCoverage.score}%
+Resolved direct internal import targets: ${contextCoverage.resolvedInternal}
 Missing direct import targets: ${contextCoverage.missing}
-Missing context candidates:
+Missing direct import details:
 ${missingContextLines}
 Suggested missing import targets:
 ${missingTargetsLines}
 
-RISK MEMORY:
-${riskMemoryText || "No previous impact analyses are available for this project."}
+Risk Memory:
+${riskMemoryText || "No risk memory provided."}
 
-PROJECT RULES / ADR MEMORY:
-${projectRulesText || "No project rules or ADRs are available for this project."}
+Project Rules:
+${projectRulesText || "No project rules provided."}
 
-COMPACT CONTEXT PACK:
-${formatContextPackForPrompt(contextPack)}
-
-SUBMITTED DIFF OR CHANGE LIST:
-${String(changeInput || "").slice(0, 15000)}`,
+${formatContextPackForPrompt(contextPack)}`,
   };
 }
 
-export function extractRiskLevelFromAnalysis(text = "", fallback = "medium") {
-  const normalized = normalize(text);
-  const explicit = normalized.match(/risk level\s*[:\-]?\s*(low|medium|high)/i);
-  if (explicit) return explicit[1].toLowerCase();
-  if (/\bhigh\b/.test(normalized)) return "high";
-  if (/\bmedium\b/.test(normalized)) return "medium";
-  if (/\blow\b/.test(normalized)) return "low";
-  return fallback;
+export function extractRiskLevel(markdown = "") {
+  const text = String(markdown || "").toLowerCase();
+  const riskSection = text.match(/##\s*risk level([\s\S]*?)(##|$)/i)?.[1] || text.slice(0, 800);
+  if (/\bhigh\b/.test(riskSection)) return "high";
+  if (/\bmedium\b/.test(riskSection)) return "medium";
+  if (/\blow\b/.test(riskSection)) return "low";
+  return null;
 }
 
 export function calibrateImpactAnalysisOutput({ text = "", heuristicRisk = "medium", signals = [], changeInput = "" } = {}) {
-  const originalText = String(text || "");
-  const parsedRisk = extractRiskLevelFromAnalysis(originalText, heuristicRisk);
+  const extracted = extractRiskLevel(text) || heuristicRisk || "medium";
   const triggers = concreteHighRiskTriggers(changeInput, signals);
-  const shouldDowngradeHigh = parsedRisk === "high" && heuristicRisk !== "high" && triggers.length === 0;
+  const hasConcreteHigh = triggers.length > 0;
 
-  if (!shouldDowngradeHigh) {
-    return { text: originalText, riskLevel: parsedRisk, adjusted: false, triggers };
+  if (extracted !== "high") {
+    return { text, riskLevel: extracted };
   }
 
-  const existingWhy = originalText.match(/(^##\s+Why this risk level\s*\n)([\s\S]*?)(?=^##\s+|$)/im)?.[2]?.trim() || "";
-  const adjustedWhy = `${existingWhy}\n- Risk calibration guard: adjusted the final risk to Medium because the deterministic pre-scan was ${heuristicRisk} and the submitted change did not contain a concrete High-risk trigger such as security/auth, payment, data loss, secrets, destructive operations, production outage, or breaking public API changes.`.trim();
+  if (hasConcreteHigh) {
+    return { text, riskLevel: "high" };
+  }
 
-  let calibrated = replaceMarkdownSection(originalText, "Risk level", "Medium");
-  calibrated = replaceMarkdownSection(calibrated, "Why this risk level", adjustedWhy);
-  calibrated = replaceMarkdownSection(calibrated, "Safe to merge?", "Needs review");
-
-  return { text: calibrated, riskLevel: "medium", adjusted: true, triggers };
+  const replacement = `Medium\n\nThe initial report used High risk, but no concrete high-risk trigger was found in the submitted change. Treating this as Medium unless additional context shows security/auth, payment/billing, database/data-loss, secrets/env, destructive operations, production outage, or breaking API impact.`;
+  return {
+    riskLevel: "medium",
+    text: replaceMarkdownSection(text, "Risk level", replacement),
+  };
 }
