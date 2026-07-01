@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, BarChart3, Braces, Download, FileWarning, GitBranch, History, Loader2, ShieldAlert, TestTube2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import OptionalEntityStatusBadge from "@/components/projects/OptionalEntityStatusBadge";
 import RiskMemoryCountList from "@/components/projects/risk-memory/RiskMemoryCountList";
 import RiskMemoryRecentAnalyses from "@/components/projects/risk-memory/RiskMemoryRecentAnalyses";
 import { useRiskMemory } from "@/hooks/useRiskMemory";
@@ -47,6 +48,9 @@ export default function RiskMemory() {
               Risk Memory
             </h1>
             {project?.name && <p className="text-xs text-slate-400 mt-1">Project: {project.name}</p>}
+            <div className="mt-2">
+              <OptionalEntityStatusBadge entityName="CodebaseAnalysis" />
+            </div>
             <p className="text-sm text-slate-500 mt-1 max-w-2xl">
               Persistent memory from previous impact analyses. It highlights repeated risk areas, high-risk files, changed symbols, common testing recommendations, review verdicts, and recent reports.
             </p>
