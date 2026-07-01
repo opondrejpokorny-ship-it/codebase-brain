@@ -8,15 +8,21 @@ export function estimateFilesTokens(files = []) {
 
 export function buildContextEfficiencyReport({ allFiles = [], selectedFiles = [], extraContextText = "" } = {}) {
   const fullRepoTokens = estimateFilesTokens(allFiles);
-  const selectedTokens = estimateFilesTokens(selectedFiles) + estimateTokensFromText(extraContextText);
-  const savedTokens = Math.max(0, fullRepoTokens - selectedTokens);
+  const selectedFileTokens = estimateFilesTokens(selectedFiles);
+  const extraContextTokens = estimateTokensFromText(extraContextText);
+  const totalContextTokens = selectedFileTokens + extraContextTokens;
+  const savedTokens = Math.max(0, fullRepoTokens - selectedFileTokens);
   const savingsPercent = fullRepoTokens > 0
     ? Math.round((savedTokens / fullRepoTokens) * 100)
     : 0;
 
   return {
     fullRepoTokens,
-    selectedTokens,
+    selectedTokens: selectedFileTokens,
+    selectedFileTokens,
+    extraContextTokens,
+    totalContextTokens,
+    selectedTotalTokens: totalContextTokens,
     savedTokens,
     savingsPercent,
     selectedFileCount: selectedFiles.length,
