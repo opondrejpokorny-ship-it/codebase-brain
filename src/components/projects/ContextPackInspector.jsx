@@ -40,10 +40,26 @@ Instructions:
 - Do not import the whole repository unless explicitly requested.`;
 }
 
+function buildResolveMissingContextPayload({ projectId, project, currentMissingTargets = [] }) {
+  return {
+    function: "resolveMissingContextTargets",
+    project_id: projectId || null,
+    repository_url: project?.repository_url || null,
+    targets: currentMissingTargets,
+    mode: "targeted_context_import",
+    expected_result: {
+      create_or_update_code_files: true,
+      rebuild_code_graph: true,
+      clear_resolved_queue_items: true,
+    },
+  };
+}
+
 export default function ContextPackInspector({ contextPack, changedFiles = [], projectId = null, project = null }) {
   const [copied, setCopied] = useState(false);
   const [copiedPaths, setCopiedPaths] = useState(false);
   const [copiedImportInstructions, setCopiedImportInstructions] = useState(false);
+  const [copiedResolvePayload, setCopiedResolvePayload] = useState(false);
   const [copiedQueue, setCopiedQueue] = useState(false);
   const [queued, setQueued] = useState(false);
   const [queuedTargets, setQueuedTargets] = useState(() => readMissingContextQueueForProject(projectId, project));
@@ -53,6 +69,7 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
     setQueued(false);
     setCopiedQueue(false);
     setCopiedImportInstructions(false);
+    setCopiedResolvePayload(false);
   }, [projectId, project]);
 
   if (!contextPack) return null;
@@ -115,6 +132,17 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
       window.setTimeout(() => setCopiedImportInstructions(false), 1600);
     } catch {
       setCopiedImportInstructions(false);
+    }
+  };
+
+  const handleCopyResolvePayload = async () => {
+    const payload = buildResolveMissingContextPayload({ projectId, project, currentMissingTargets });
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+      setCopiedResolvePayload(true);
+      window.setTimeout(() => setCopiedResolvePayload(false), 1600);
+    } catch {
+      setCopiedResolvePayload(false);
     }
   };
 
@@ -183,6 +211,8 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
         copiedPaths={copiedPaths}
         onCopyImportInstructions={handleCopyImportInstructions}
         copiedImportInstructions={copiedImportInstructions}
+        onCopyResolvePayload={handleCopyResolvePayload}
+        copiedResolvePayload={copiedResolvePayload}
         onAddToQueue={handleAddToQueue}
         queued={queueButtonActive}
         queuedTargets={queuedTargets}
