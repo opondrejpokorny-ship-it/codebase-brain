@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { BookOpenCheck, Bot, Building2, FileText, History, Search } from "lucide-react";
+import { BookOpenCheck, Bot, Building2, FileText, GitBranch, History, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function SmartContextActions({ projectId }) {
@@ -17,6 +17,12 @@ export default function SmartContextActions({ projectId }) {
         <Button variant="outline" size="sm" className="gap-2 cursor-pointer">
           <Building2 className="w-4 h-4" />
           Architecture
+        </Button>
+      </Link>
+      <Link to={`/project/${projectId}/graph`}>
+        <Button variant="outline" size="sm" className="gap-2 cursor-pointer">
+          <GitBranch className="w-4 h-4" />
+          Graph Lens
         </Button>
       </Link>
       <Link to={`/project/${projectId}/decisions`}>
