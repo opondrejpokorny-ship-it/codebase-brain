@@ -1,6 +1,6 @@
 # Phase 38-50: Codebase Brain v2 roadmap
 
-This document turns the competitive research into an implementation roadmap. The goal is not to clone local MCP engines such as codebase-memory-mcp, CodeGraph, Gortex, Octocode, Qartez, Reporecall, or Graphify. The product direction is to make Codebase Brain the web/product layer above codebase memory: PR review, context packs, project decisions, risk memory, architecture lens, graph lens, and eventually MCP access.
+This document turns the competitive research into an implementation roadmap. The goal is not to clone local MCP engines such as codebase-memory-mcp, CodeGraph, Gortex, Octocode, Qartez, Reporecall, or Graphify. The product direction is to make Codebase Brain the web/product layer above codebase memory: PR review, context packs, project decisions, risk memory, architecture lens, graph lens, exports, and eventually MCP access.
 
 ## Product position
 
@@ -61,6 +61,10 @@ Added `src/lib/contextFreshnessUtils.js` and `src/components/projects/ContextFre
 
 Added `src/components/projects/ReviewVerdictBadge.jsx` and surfaced `SAFE`, `REVIEW`, and `BLOCK` review verdicts in Risk Memory summaries and recent analysis cards. This makes the review verdict visible outside Graph Lens and prepares the same badge component for PR Inbox follow-up.
 
+### 5h. Architecture report exports
+
+Added `src/lib/reportDownloadUtils.js` and export controls in Architecture Overview. Users can now download the deterministic architecture report as Markdown and the underlying architecture facts as JSON. This is the first export surface toward `architecture-report.md`, `context-pack.json`, and `risk-report.md`.
+
 ### 6. GitHub App private import
 
 The repo already has the safe GitHub App skeleton, private import readiness, repository link metadata, and dry-run installation token helper. The next production step remains backend-only non-dry-run installation token creation behind feature flags.
@@ -84,7 +88,7 @@ Added `src/lib/mcpLiteTools.js` with a tool manifest and config-snippet generato
 ## Current implementation status
 
 - Product surfaces added: Search Codebase, Architecture, Graph Lens, Decisions, MCP Setup, Risk Memory, Project Rules.
-- Foundations added: graph persistence helpers, graph lens data builder, graph PR overlay, saved PR analysis overlay link, PR Inbox deep link, context freshness banners, review verdict badges, product-context helpers, decision memory helpers, MCP Lite manifest, verdict calibration.
+- Foundations added: graph persistence helpers, graph lens data builder, graph PR overlay, saved PR analysis overlay link, PR Inbox deep link, context freshness banners, review verdict badges, architecture report exports, product-context helpers, decision memory helpers, MCP Lite manifest, verdict calibration.
 - Still intentionally deferred: running MCP server, backend-only private import token creation, queued webhook PR analysis, persisted Base44 entities for graph/decisions/context packs, local tree-sitter/LSP engine, and 3D/WebGL graph mode.
 
 ## Remaining implementation order
@@ -94,7 +98,7 @@ Added `src/lib/mcpLiteTools.js` with a tool manifest and config-snippet generato
 3. Add queued PR analysis from webhook deliveries without posting GitHub comments.
 4. Add read-only private repo import behind `GITHUB_PRIVATE_IMPORT_ENABLED`.
 5. Promote verdict badges into PR Inbox item cards.
-6. Add architecture/report exports: `architecture-report.md`, `context-pack.json`, `risk-report.md`.
+6. Extend exports to `context-pack.json` and `risk-report.md`.
 7. Add Graph Lens v3 3D View after persistent graph storage is stable.
 8. Only after the product layer is stable, evaluate a bridge to a local engine or tree-sitter worker.
 
