@@ -1,12 +1,14 @@
 // @ts-nocheck
 import { useMemo } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, BarChart3, Braces, FileWarning, GitBranch, History, Loader2, ShieldAlert, TestTube2 } from "lucide-react";
+import { ArrowLeft, BarChart3, Braces, Download, FileWarning, GitBranch, History, Loader2, ShieldAlert, TestTube2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import RiskMemoryCountList from "@/components/projects/risk-memory/RiskMemoryCountList";
 import RiskMemoryRecentAnalyses from "@/components/projects/risk-memory/RiskMemoryRecentAnalyses";
 import { useRiskMemory } from "@/hooks/useRiskMemory";
 import { verdictFromPrAnalysis } from "@/lib/prAnalysisOverlayUtils";
+import { downloadMarkdownReport } from "@/lib/reportDownloadUtils";
+import { formatRiskReportMarkdown } from "@/lib/riskReportExportUtils";
 
 function countVerdicts(analyses = []) {
   return analyses.reduce((acc, analysis) => {
@@ -20,6 +22,7 @@ export default function RiskMemory() {
   const { id } = useParams();
   const { project, analyses, memory, loading, historySource } = useRiskMemory(id);
   const verdictCounts = useMemo(() => countVerdicts(analyses), [analyses]);
+  const riskReportMarkdown = useMemo(() => formatRiskReportMarkdown({ project, analyses, memory, historySource }), [project, analyses, memory, historySource]);
 
   if (loading) {
     return (
@@ -52,6 +55,14 @@ export default function RiskMemory() {
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              className="cursor-pointer gap-2 w-full sm:w-auto"
+              onClick={() => downloadMarkdownReport(project?.name || "project", "risk-report", riskReportMarkdown)}
+            >
+              <Download className="w-4 h-4" />
+              Export risk report
+            </Button>
             <Link to={`/project/${id}/impact`}>
               <Button variant="outline" className="cursor-pointer gap-2 w-full sm:w-auto">
                 <ShieldAlert className="w-4 h-4" />
