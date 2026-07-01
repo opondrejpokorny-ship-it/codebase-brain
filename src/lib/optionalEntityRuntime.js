@@ -2,6 +2,18 @@
 import { base44 } from '@/api/base44Client';
 import { buildRecordSourceSummary } from '@/lib/recordSourceUtils';
 
+export const DEFAULT_OPTIONAL_ENTITY_NAMES = [
+  'CodeRelation',
+  'CodeSymbol',
+  'DecisionMemory',
+  'ContextPack',
+  'CodebaseAnalysis',
+];
+
+export function optionalEntityNames() {
+  return [...DEFAULT_OPTIONAL_ENTITY_NAMES];
+}
+
 export function optionalEntity(entityName) {
   try {
     return base44?.entities?.[entityName] || null;

@@ -1,16 +1,9 @@
 // @ts-nocheck
 import { Database } from 'lucide-react';
 import OptionalEntityStatusBadge from '@/components/projects/OptionalEntityStatusBadge';
+import { optionalEntityNames } from '@/lib/optionalEntityRuntime';
 
-const DEFAULT_ENTITIES = [
-  'CodeRelation',
-  'CodeSymbol',
-  'DecisionMemory',
-  'ContextPack',
-  'CodebaseAnalysis',
-];
-
-export default function OptionalEntitiesStatusCard({ entities = DEFAULT_ENTITIES, title = 'Optional persistence' }) {
+export default function OptionalEntitiesStatusCard({ entities = optionalEntityNames(), title = 'Optional persistence' }) {
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-5">
       <div className="flex items-start gap-2 mb-3">
