@@ -20,6 +20,14 @@ function tokenStats(analysis = {}) {
   return { selected, full, savings, total };
 }
 
+function changedSymbols(analysis = {}) {
+  return Array.isArray(analysis.changed_symbols) ? analysis.changed_symbols : [];
+}
+
+function symbolLabel(symbol = {}) {
+  return `${symbol.name || "symbol"}${symbol.type ? ` · ${symbol.type}` : ""}${symbol.path ? ` · ${symbol.path}` : ""}`;
+}
+
 function formatTokens(value) {
   if (!Number.isFinite(Number(value))) return "—";
   const num = Number(value);
@@ -36,6 +44,7 @@ export default function RiskMemoryRecentAnalyses({ analyses = [] }) {
         {analyses.slice(0, 12).map((analysis) => {
           const stats = tokenStats(analysis);
           const contextDepth = depthLabel(analysis);
+          const symbols = changedSymbols(analysis);
           return (
             <div key={analysis.id || analysis.created_date} className="border border-slate-100 rounded-lg p-4">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
@@ -52,6 +61,12 @@ export default function RiskMemoryRecentAnalyses({ analyses = [] }) {
                   {stats.total && stats.total !== stats.selected && <span className="bg-slate-50 border border-slate-100 px-2 py-1 rounded-md">prompt total {formatTokens(stats.total)} tokens</span>}
                   {stats.full && <span className="bg-slate-50 border border-slate-100 px-2 py-1 rounded-md">full repo {formatTokens(stats.full)} tokens</span>}
                   {stats.savings != null && <span className="bg-emerald-50 border border-emerald-100 text-emerald-700 px-2 py-1 rounded-md">files saved {stats.savings}%</span>}
+                </div>
+              )}
+              {symbols.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {symbols.slice(0, 5).map((symbol) => <span key={`${symbol.path}:${symbol.name}:${symbol.line}`} className="text-xs bg-purple-50 border border-purple-100 text-purple-700 px-2 py-1 rounded-md">{symbolLabel(symbol)}</span>)}
+                  {symbols.length > 5 && <span className="text-xs text-slate-400 px-2 py-1">+{symbols.length - 5} more symbols</span>}
                 </div>
               )}
               {analysis.changed_files?.length > 0 && (
