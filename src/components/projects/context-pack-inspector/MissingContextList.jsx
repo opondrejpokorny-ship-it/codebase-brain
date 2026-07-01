@@ -1,4 +1,4 @@
-import { Check, ClipboardCopy, PackageSearch, TriangleAlert } from "lucide-react";
+import { Check, ClipboardCopy, Loader2, PackageSearch, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import QueuedTargetsPanel from "@/components/projects/context-pack-inspector/QueuedTargetsPanel";
 import { missingContextLabel } from "@/lib/contextPackInspectorUtils";
@@ -18,6 +18,8 @@ export default function MissingContextList({
   copiedImportInstructions,
   onCopyResolvePayload,
   copiedResolvePayload,
+  onResolveCurrent,
+  resolvingCurrent,
   onAddToQueue,
   queued,
   queuedTargets = [],
@@ -49,6 +51,12 @@ export default function MissingContextList({
             <Button type="button" variant="outline" size="sm" onClick={onCopyResolvePayload} className="h-7 gap-1.5 cursor-pointer text-xs bg-white/70">
               {copiedResolvePayload ? <Check className="w-3 h-3" /> : <ClipboardCopy className="w-3 h-3" />}
               {copiedResolvePayload ? "Copied" : "Copy resolve payload"}
+            </Button>
+          )}
+          {onResolveCurrent && (
+            <Button type="button" variant="outline" size="sm" onClick={onResolveCurrent} disabled={resolvingCurrent} className="h-7 gap-1.5 cursor-pointer text-xs bg-white/70">
+              {resolvingCurrent ? <Loader2 className="w-3 h-3 animate-spin" /> : <PackageSearch className="w-3 h-3" />}
+              {resolvingCurrent ? "Resolving" : "Resolve current"}
             </Button>
           )}
           {canQueue && (
