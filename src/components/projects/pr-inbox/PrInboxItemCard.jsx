@@ -30,7 +30,7 @@ function graphLensUrl(projectId, item = {}) {
   return `/project/${projectId}/graph?pr=${encodeURIComponent(prAnalysisKey(item))}`;
 }
 
-export default function PrInboxItemCard({ projectId, item = {}, canAnalyze = false, onAnalyze = null, analyzing = false }) {
+export default function PrInboxItemCard({ projectId, item = {}, canAnalyze = false, onAnalyze = null, analyzing = false, extraActions = null }) {
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-4">
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
@@ -52,6 +52,7 @@ export default function PrInboxItemCard({ projectId, item = {}, canAnalyze = fal
               <PlayCircle className="w-3.5 h-3.5" /> Analyze now
             </Button>
           )}
+          {extraActions}
         </div>
       </div>
     </div>
