@@ -77,6 +77,13 @@ export default function WorkspaceQualityOverview({ projects = [] }) {
           </div>
         )}
       </div>
+
+      <Link to="/workspace/quality" className="block">
+        <Button variant="outline" className="w-full gap-1.5 cursor-pointer">
+          Open workspace quality
+          <ArrowRight className="w-3.5 h-3.5" />
+        </Button>
+      </Link>
     </div>
   );
 }
