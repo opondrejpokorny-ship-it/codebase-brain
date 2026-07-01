@@ -291,6 +291,19 @@ export function summarizeCodeGraph(relations = []) {
   };
 }
 
+export function buildCodeGraphStoragePreview(files = []) {
+  const relations = buildCodeRelations(files);
+  const summary = summarizeCodeGraph(relations);
+  return {
+    relation_records: relations.length,
+    internal_records: summary.internalRelations,
+    external_records: summary.externalImports,
+    unresolved_records: summary.unresolvedRelativeImports + summary.aliasUnresolvedImports,
+    top_connected_files: summary.topConnectedFiles,
+    sample_records: relations.slice(0, 20),
+  };
+}
+
 export function explainWhyFilesAreRelated(relations = [], sourcePath = "", targetPath = "") {
   const source = normalizePath(sourcePath);
   const target = normalizePath(targetPath);
