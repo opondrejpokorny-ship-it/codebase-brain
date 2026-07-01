@@ -114,3 +114,14 @@ export function summarizeSymbols(symbols = []) {
     topFiles,
   };
 }
+
+export function buildSymbolIndexPreview(files = []) {
+  const symbols = extractProjectSymbols(files);
+  const summary = summarizeSymbols(symbols);
+  return {
+    symbol_records: symbols.length,
+    kind_counts: summary.byKind,
+    top_symbol_files: summary.topFiles,
+    sample_records: symbols.slice(0, 25),
+  };
+}
