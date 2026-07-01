@@ -2,6 +2,15 @@ import { GitBranch } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { impactRiskStyles } from "@/lib/impactAnalysisDisplayUtils";
 
+/**
+ * @param {{
+ *   heuristicRisk?: string;
+ *   changedFiles?: string[];
+ *   graphSummary?: { totalRelations?: number };
+ *   relatedPaths?: string[];
+ *   signals?: string[];
+ * }} props
+ */
 export default function PreScanPanel({ heuristicRisk, changedFiles = [], graphSummary = {}, relatedPaths = [], signals = [] }) {
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-5">
