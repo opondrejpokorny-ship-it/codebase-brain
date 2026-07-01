@@ -9,6 +9,8 @@ import { applyWorkspaceQualityControls, WORKSPACE_QUALITY_FILTERS, WORKSPACE_QUA
 import { readWorkspaceQualityPreference, writeWorkspaceQualityPreference } from '@/lib/workspaceQualityPreferenceUtils';
 import { downloadWorkspaceQualityMarkdownReport } from '@/lib/workspaceQualityReportUtils';
 import { formatSnapshotDate, listWorkspaceQualitySnapshots, saveWorkspaceQualitySnapshot, summarizeWorkspaceQualityTrend } from '@/lib/workspaceQualityTrendUtils';
+import { readWorkspaceOptions } from '@/lib/workspaceOptionsUtils';
+import { summarizeWorkspaceTarget } from '@/lib/workspaceTargetUtils';
 
 function TierCard({ label, count }) {
   return (
@@ -53,12 +55,20 @@ function TrendBadge({ trend }) {
   return <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">{trend.label}</span>;
 }
 
+function TargetBadge({ target }) {
+  const className = target.met
+    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+    : 'border-amber-200 bg-amber-50 text-amber-700';
+  return <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${className}`}>{target.label}</span>;
+}
+
 export default function WorkspaceQuality() {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [qualityFilter, setQualityFilter] = useState(() => readWorkspaceQualityPreference('qualityFilter', 'all'));
   const [qualitySort, setQualitySort] = useState(() => readWorkspaceQualityPreference('qualitySort', 'quality_asc'));
   const [snapshots, setSnapshots] = useState(() => listWorkspaceQualitySnapshots());
+  const [workspaceOptions] = useState(() => readWorkspaceOptions());
 
   useEffect(() => {
     base44.entities.CodebaseProject.list('-created_date', 100)
@@ -75,6 +85,7 @@ export default function WorkspaceQuality() {
   }, [qualitySort]);
 
   const overview = useMemo(() => buildWorkspaceQualityOverview(projects), [projects]);
+  const target = useMemo(() => summarizeWorkspaceTarget(overview.average, workspaceOptions.quality_target), [overview.average, workspaceOptions.quality_target]);
   const trend = useMemo(() => summarizeWorkspaceQualityTrend(overview, snapshots), [overview, snapshots]);
   const visibleReports = useMemo(
     () => applyWorkspaceQualityControls(overview.projectReports, { filter: qualityFilter, sort: qualitySort }),
@@ -87,7 +98,7 @@ export default function WorkspaceQuality() {
   }
 
   function handleDownloadReport() {
-    downloadWorkspaceQualityMarkdownReport({ overview, snapshots });
+    downloadWorkspaceQualityMarkdownReport({ overview, snapshots, options: workspaceOptions });
   }
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /></div>;
@@ -110,7 +121,8 @@ export default function WorkspaceQuality() {
         <div className={`rounded-xl border px-4 py-3 min-w-48 ${scoreToneClasses(overview.tierTone)}`}>
           <div className="text-xs uppercase tracking-wider opacity-80">Workspace average</div>
           <div className="text-3xl font-bold mt-1">{overview.average}%</div>
-          <div className="text-sm font-medium">{overview.total} projects</div>
+          <div className="text-sm font-medium">Target {target.target}%</div>
+          <div className="mt-2"><TargetBadge target={target} /></div>
         </div>
       </div>
 
@@ -136,6 +148,7 @@ export default function WorkspaceQuality() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <TrendBadge trend={trend} />
+              <TargetBadge target={target} />
               {trend.previous && <span className="text-xs text-slate-500">Last saved: {formatSnapshotDate(trend.previous.created_at)} · {trend.previous.average}% average</span>}
             </div>
             {snapshots.length > 0 && (
