@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Activity, ArrowLeft, ArrowRight, CheckCircle, Loader2, ShieldAlert } from 'lucide-react';
+import { Activity, ArrowLeft, ArrowRight, CheckCircle, Loader2, ShieldAlert, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { base44 } from '@/api/base44Client';
 import { buildWorkspaceQualityOverview } from '@/lib/workspaceQualityUtils';
 import { scoreToneClasses } from '@/lib/productQualityUtils';
+import { applyWorkspaceQualityControls, WORKSPACE_QUALITY_FILTERS, WORKSPACE_QUALITY_SORTS } from '@/lib/workspaceQualityListUtils';
 
 function TierCard({ label, count }) {
   return (
@@ -46,6 +47,8 @@ function ProjectQualityRow({ item }) {
 export default function WorkspaceQuality() {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [qualityFilter, setQualityFilter] = useState('all');
+  const [qualitySort, setQualitySort] = useState('quality_asc');
 
   useEffect(() => {
     base44.entities.CodebaseProject.list('-created_date', 100)
@@ -54,6 +57,10 @@ export default function WorkspaceQuality() {
   }, []);
 
   const overview = useMemo(() => buildWorkspaceQualityOverview(projects), [projects]);
+  const visibleReports = useMemo(
+    () => applyWorkspaceQualityControls(overview.projectReports, { filter: qualityFilter, sort: qualitySort }),
+    [overview.projectReports, qualityFilter, qualitySort]
+  );
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /></div>;
 
@@ -108,6 +115,49 @@ export default function WorkspaceQuality() {
               </div>
               {overview.strongest.map((item) => <ProjectQualityRow key={item.project.id} item={item} />)}
             </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div>
+                <h2 className="font-semibold text-slate-900 flex items-center gap-2">
+                  <SlidersHorizontal className="w-4 h-4" /> All projects
+                </h2>
+                <p className="text-sm text-slate-500 mt-1">Showing {visibleReports.length} of {overview.projectReports.length} projects.</p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <label className="sr-only" htmlFor="workspace-quality-filter">Quality filter</label>
+                <select
+                  id="workspace-quality-filter"
+                  value={qualityFilter}
+                  onChange={(event) => setQualityFilter(event.target.value)}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-slate-300"
+                >
+                  {WORKSPACE_QUALITY_FILTERS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                </select>
+                <label className="sr-only" htmlFor="workspace-quality-sort">Sort projects</label>
+                <select
+                  id="workspace-quality-sort"
+                  value={qualitySort}
+                  onChange={(event) => setQualitySort(event.target.value)}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-slate-300"
+                >
+                  {WORKSPACE_QUALITY_SORTS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {visibleReports.length ? (
+              <div className="space-y-2">
+                {visibleReports.map((item) => <ProjectQualityRow key={item.project.id} item={item} />)}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center">
+                <h3 className="font-semibold text-slate-900">No projects match this filter</h3>
+                <p className="text-sm text-slate-500 mt-1 mb-4">Try a broader quality filter.</p>
+                <Button variant="outline" onClick={() => setQualityFilter('all')} className="cursor-pointer">Show all projects</Button>
+              </div>
+            )}
           </div>
         </>
       )}
