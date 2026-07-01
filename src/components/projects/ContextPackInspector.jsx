@@ -58,10 +58,13 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
     isSelectedFileRelation(relation, selectedPathSet)
   );
 
-  const missingPathGuesses = uniqueMissingPathGuesses(missingContextRelations);
+  const currentMissingTargets = uniqueMissingPathGuesses(missingContextRelations);
+  const currentMissingTargetSet = new Set(currentMissingTargets);
   const coverage = buildCoverageSummary(directChangedRelations, missingContextRelations);
-  const queuedTargetSet = new Set(queuedTargets.map((item) => item.target).filter(Boolean));
-  const allCurrentMissingTargetsQueued = missingPathGuesses.length > 0 && missingPathGuesses.every((path) => queuedTargetSet.has(path));
+  const queuedCurrentTargets = queuedTargets.filter((item) => currentMissingTargetSet.has(item.target));
+  const queuedOtherTargets = queuedTargets.filter((item) => !currentMissingTargetSet.has(item.target));
+  const queuedCurrentSet = new Set(queuedCurrentTargets.map((item) => item.target));
+  const allCurrentMissingTargetsQueued = currentMissingTargets.length > 0 && currentMissingTargets.every((path) => queuedCurrentSet.has(path));
   const queueButtonActive = queued || allCurrentMissingTargetsQueued;
 
   const handleCopy = async () => {
@@ -77,7 +80,7 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
 
   const handleCopyMissingPaths = async () => {
     try {
-      await navigator.clipboard.writeText(missingPathGuesses.join("\n"));
+      await navigator.clipboard.writeText(currentMissingTargets.join("\n"));
       setCopiedPaths(true);
       window.setTimeout(() => setCopiedPaths(false), 1600);
     } catch {
@@ -141,7 +144,21 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
 
       <SelectedFilesList files={selectedFiles} reasonsByPath={contextPack.reasons || {}} relevanceScores={contextPack.relevanceScores || {}} />
 
-      <MissingContextList relations={missingContextRelations} onCopyPaths={handleCopyMissingPaths} copiedPaths={copiedPaths} onAddToQueue={handleAddToQueue} queued={queueButtonActive} queuedTargets={queuedTargets} onCopyQueue={handleCopyQueue} copiedQueue={copiedQueue} onClearQueue={handleClearQueue} canQueue={Boolean(projectId)} />
+      <MissingContextList
+        relations={missingContextRelations}
+        currentMissingTargets={currentMissingTargets}
+        queuedCurrentTargets={queuedCurrentTargets}
+        queuedOtherTargets={queuedOtherTargets}
+        onCopyPaths={handleCopyMissingPaths}
+        copiedPaths={copiedPaths}
+        onAddToQueue={handleAddToQueue}
+        queued={queueButtonActive}
+        queuedTargets={queuedTargets}
+        onCopyQueue={handleCopyQueue}
+        copiedQueue={copiedQueue}
+        onClearQueue={handleClearQueue}
+        canQueue={Boolean(projectId)}
+      />
       <RelationList title="Graph relations connected to changed files" relations={directChangedRelations} />
       <RelationList title="Relations among selected context files" relations={selectedContextRelations} limit={8} />
     </div>
