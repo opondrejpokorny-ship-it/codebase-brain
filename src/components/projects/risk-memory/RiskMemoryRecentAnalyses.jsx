@@ -12,11 +12,12 @@ function depthLabel(analysis = {}) {
 }
 
 function tokenStats(analysis = {}) {
-  const selected = analysis.context_selected_tokens || analysis.contextSelectedTokens || analysis.context_pack?.efficiency?.selectedTokens || analysis.contextPack?.efficiency?.selectedTokens || null;
+  const selected = analysis.context_selected_tokens || analysis.contextSelectedTokens || analysis.context_pack?.efficiency?.selectedFileTokens || analysis.contextPack?.efficiency?.selectedFileTokens || analysis.context_pack?.efficiency?.selectedTokens || analysis.contextPack?.efficiency?.selectedTokens || null;
   const full = analysis.context_full_repo_tokens || analysis.contextFullRepoTokens || analysis.context_pack?.efficiency?.fullRepoTokens || analysis.contextPack?.efficiency?.fullRepoTokens || null;
   const savings = analysis.context_savings_percent || analysis.contextSavingsPercent || analysis.context_pack?.efficiency?.savingsPercent || analysis.contextPack?.efficiency?.savingsPercent || null;
-  if (!selected && !full && savings == null) return null;
-  return { selected, full, savings };
+  const total = analysis.context_total_tokens || analysis.contextTotalTokens || analysis.context_pack?.efficiency?.totalContextTokens || analysis.contextPack?.efficiency?.totalContextTokens || null;
+  if (!selected && !full && !total && savings == null) return null;
+  return { selected, full, savings, total };
 }
 
 function formatTokens(value) {
@@ -47,9 +48,10 @@ export default function RiskMemoryRecentAnalyses({ analyses = [] }) {
               </div>
               {stats && (
                 <div className="flex flex-wrap gap-1.5 mb-2 text-xs text-slate-500">
-                  <span className="bg-slate-50 border border-slate-100 px-2 py-1 rounded-md">selected {formatTokens(stats.selected)} tokens</span>
-                  {stats.full && <span className="bg-slate-50 border border-slate-100 px-2 py-1 rounded-md">full {formatTokens(stats.full)} tokens</span>}
-                  {stats.savings != null && <span className="bg-emerald-50 border border-emerald-100 text-emerald-700 px-2 py-1 rounded-md">saved {stats.savings}%</span>}
+                  <span className="bg-slate-50 border border-slate-100 px-2 py-1 rounded-md">selected files {formatTokens(stats.selected)} tokens</span>
+                  {stats.total && stats.total !== stats.selected && <span className="bg-slate-50 border border-slate-100 px-2 py-1 rounded-md">prompt total {formatTokens(stats.total)} tokens</span>}
+                  {stats.full && <span className="bg-slate-50 border border-slate-100 px-2 py-1 rounded-md">full repo {formatTokens(stats.full)} tokens</span>}
+                  {stats.savings != null && <span className="bg-emerald-50 border border-emerald-100 text-emerald-700 px-2 py-1 rounded-md">files saved {stats.savings}%</span>}
                 </div>
               )}
               {analysis.changed_files?.length > 0 && (
