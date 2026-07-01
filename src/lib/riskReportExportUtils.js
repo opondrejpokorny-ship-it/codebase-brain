@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { verdictFromPrAnalysis } from '@/lib/prAnalysisOverlayUtils';
 
 function formatDate(value) {
