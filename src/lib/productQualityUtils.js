@@ -7,13 +7,19 @@ function asArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
+function asAny(value) {
+  return /** @type {any} */ (value || {});
+}
+
 function importedFileCount(project = {}, files = []) {
-  const metadata = project.import_metadata || {};
+  const safeProject = asAny(project);
+  const metadata = asAny(safeProject.import_metadata);
   return files.length || metadata.imported_files || metadata.importedFiles || metadata.file_count || metadata.fileCount || 0;
 }
 
 function totalCandidateCount(project = {}, files = []) {
-  const metadata = project.import_metadata || {};
+  const safeProject = asAny(project);
+  const metadata = asAny(safeProject.import_metadata);
   return metadata.total_candidates || metadata.totalCandidates || metadata.tree_entries || metadata.treeEntries || Math.max(importedFileCount(project, files), 1);
 }
 
@@ -22,13 +28,15 @@ function hasStoredContext(project = {}, files = []) {
 }
 
 function importScore(project = {}, files = []) {
-  if (project.status === 'url_only') return 25;
-  if (project.status === 'error') return 10;
+  const safeProject = asAny(project);
+  if (safeProject.status === 'url_only') return 25;
+  if (safeProject.status === 'error') return 10;
   return Math.max(35, pct(importedFileCount(project, files), totalCandidateCount(project, files)));
 }
 
 function contextScore(project = {}, files = []) {
-  const metadata = project.import_metadata || {};
+  const safeProject = asAny(project);
+  const metadata = asAny(safeProject.import_metadata);
   const queue = asArray(metadata.missingContextQueue || metadata.missing_context_queue);
   if (!hasStoredContext(project, files)) return 10;
   if (!queue.length) return 90;
@@ -59,8 +67,13 @@ function priority(id, title, description, severity = 'medium') {
   return { id, title, description, severity };
 }
 
-export function buildProductQualityReport({ project = {}, files = [], analyses = [], rules = [] } = {}) {
-  const metadata = project.import_metadata || {};
+export function buildProductQualityReport(input = {}) {
+  const safeInput = asAny(input);
+  const project = asAny(safeInput.project);
+  const files = asArray(safeInput.files);
+  const analyses = asArray(safeInput.analyses);
+  const rules = asArray(safeInput.rules);
+  const metadata = asAny(project.import_metadata);
   const missingQueue = asArray(metadata.missingContextQueue || metadata.missing_context_queue);
   const storedContext = hasStoredContext(project, files);
   const scores = {
@@ -98,12 +111,12 @@ export function buildProductQualityReport({ project = {}, files = [], analyses =
 }
 
 export function scoreToneClasses(tone = 'slate') {
-  const tones = {
+  const tones = /** @type {Record<string, string>} */ ({
     emerald: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     blue: 'bg-blue-50 text-blue-700 border-blue-200',
     amber: 'bg-amber-50 text-amber-700 border-amber-200',
     red: 'bg-red-50 text-red-700 border-red-200',
     slate: 'bg-slate-50 text-slate-700 border-slate-200',
-  };
+  });
   return tones[tone] || tones.slate;
 }
