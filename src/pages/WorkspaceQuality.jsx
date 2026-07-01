@@ -6,6 +6,7 @@ import { base44 } from '@/api/base44Client';
 import { buildWorkspaceQualityOverview } from '@/lib/workspaceQualityUtils';
 import { scoreToneClasses } from '@/lib/productQualityUtils';
 import { applyWorkspaceQualityControls, WORKSPACE_QUALITY_FILTERS, WORKSPACE_QUALITY_SORTS } from '@/lib/workspaceQualityListUtils';
+import { readWorkspaceQualityPreference, writeWorkspaceQualityPreference } from '@/lib/workspaceQualityPreferenceUtils';
 import { formatSnapshotDate, listWorkspaceQualitySnapshots, saveWorkspaceQualitySnapshot, summarizeWorkspaceQualityTrend } from '@/lib/workspaceQualityTrendUtils';
 
 function TierCard({ label, count }) {
@@ -54,8 +55,8 @@ function TrendBadge({ trend }) {
 export default function WorkspaceQuality() {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [qualityFilter, setQualityFilter] = useState('all');
-  const [qualitySort, setQualitySort] = useState('quality_asc');
+  const [qualityFilter, setQualityFilter] = useState(() => readWorkspaceQualityPreference('qualityFilter', 'all'));
+  const [qualitySort, setQualitySort] = useState(() => readWorkspaceQualityPreference('qualitySort', 'quality_asc'));
   const [snapshots, setSnapshots] = useState(() => listWorkspaceQualitySnapshots());
 
   useEffect(() => {
@@ -63,6 +64,14 @@ export default function WorkspaceQuality() {
       .then(setProjects)
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    writeWorkspaceQualityPreference('qualityFilter', qualityFilter);
+  }, [qualityFilter]);
+
+  useEffect(() => {
+    writeWorkspaceQualityPreference('qualitySort', qualitySort);
+  }, [qualitySort]);
 
   const overview = useMemo(() => buildWorkspaceQualityOverview(projects), [projects]);
   const trend = useMemo(() => summarizeWorkspaceQualityTrend(overview, snapshots), [overview, snapshots]);
