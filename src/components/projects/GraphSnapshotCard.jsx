@@ -1,12 +1,36 @@
 // @ts-nocheck
 import { useMemo, useState } from 'react';
-import { Database, Download, Loader2, Network } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Database, Download, Loader2, Network } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import GraphPersistenceStatusBadges from '@/components/projects/GraphPersistenceStatusBadges';
 import { buildGraphSnapshot, graphSnapshotToMarkdown, persistGraphSnapshot } from '@/lib/graphPersistenceUtils';
 import { canWriteEntity, optionalEntity } from '@/lib/optionalEntityRuntime';
 import { downloadJsonReport, downloadMarkdownReport } from '@/lib/reportDownloadUtils';
+
+function GraphPersistResultSummary({ result }) {
+  if (!result) return null;
+  const errors = result.errors || [];
+  const persisted = Boolean(result.persisted);
+  const Icon = persisted && errors.length === 0 ? CheckCircle2 : AlertCircle;
+
+  return (
+    <div className={`mt-3 rounded-lg border px-3 py-2 text-xs ${persisted ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+      <div className="flex items-center gap-1.5 font-medium">
+        <Icon className="w-3.5 h-3.5" />
+        {persisted ? 'Snapshot persisted' : `Snapshot not persisted: ${result.reason || 'unknown reason'}`}
+      </div>
+      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+        <span>Relations: {result.relation_records_saved || 0}/{result.relation_records_attempted || result.snapshot?.relations?.length || 0}</span>
+        <span>Symbols: {result.symbol_records_saved || 0}/{result.symbol_records_attempted || result.snapshot?.symbols?.length || 0}</span>
+        {errors.length > 0 && <span>Errors: {errors.length}</span>}
+      </div>
+      {errors.length > 0 && (
+        <p className="mt-1 text-[11px] opacity-80">First error: {errors[0]?.message || 'Unknown persistence error'}</p>
+      )}
+    </div>
+  );
+}
 
 export default function GraphSnapshotCard({ project, files = [] }) {
   const snapshot = useMemo(() => buildGraphSnapshot({ project, files }), [project, files]);
@@ -60,11 +84,7 @@ export default function GraphSnapshotCard({ project, files = [] }) {
         </div>
       </div>
 
-      {persistResult && (
-        <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
-          Snapshot persistence attempted. Detailed saved-count summary will be shown in the next persistence result step.
-        </div>
-      )}
+      <GraphPersistResultSummary result={persistResult} />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-4">
         <div className="rounded-lg bg-slate-50 border border-slate-100 p-3">
