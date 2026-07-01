@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import ChatBox from "@/components/projects/ChatBox";
 import CodeRelationsCard from "@/components/projects/CodeRelationsCard";
+import CodeSymbolsCard from "@/components/projects/CodeSymbolsCard";
 import FilesPanel from "@/components/projects/FilesPanel";
 import ImportMetadataCard from "@/components/projects/ImportMetadataCard";
 import MissingContextQueueCard from "@/components/projects/MissingContextQueueCard";
@@ -65,6 +66,7 @@ export default function ProjectDetail() {
       <ImportMetadataCard project={project} />
       <MissingContextQueueCard project={project} projectId={id} queue={missingContextQueue} files={files} resolving={projectState.resolvingQueue} resolveMessage={projectState.queueResolveMessage} resolveError={projectState.queueResolveError} onResolve={projectState.resolveQueueFromGitHub} onClear={projectState.clearQueueState} />
       <CodeRelationsCard files={files} />
+      <CodeSymbolsCard files={files} />
 
       <div className="grid lg:grid-cols-2 gap-6">
         <FilesPanel files={files} />
