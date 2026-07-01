@@ -69,6 +69,10 @@ Added `src/lib/reportDownloadUtils.js` and export controls in Architecture Overv
 
 The Context Pack Inspector now exports the active selected context as JSON, including project metadata, depth, budget, efficiency, warnings, selected files with reasons and scores, selected relations, graph summary, changed files, and missing-context targets. This makes the selected context portable to coding agents and easier to debug.
 
+### 5j. Risk report Markdown export
+
+Added `src/lib/riskReportExportUtils.js` and an `Export risk report` action in Risk Memory. The report exports all current Risk Memory summaries, review verdict counts, repeated risk areas, common tests, and recent analyses as `risk-report.md`.
+
 ### 6. GitHub App private import
 
 The repo already has the safe GitHub App skeleton, private import readiness, repository link metadata, and dry-run installation token helper. The next production step remains backend-only non-dry-run installation token creation behind feature flags.
@@ -92,7 +96,7 @@ Added `src/lib/mcpLiteTools.js` with a tool manifest and config-snippet generato
 ## Current implementation status
 
 - Product surfaces added: Search Codebase, Architecture, Graph Lens, Decisions, MCP Setup, Risk Memory, Project Rules.
-- Foundations added: graph persistence helpers, graph lens data builder, graph PR overlay, saved PR analysis overlay link, PR Inbox deep link, context freshness banners, review verdict badges, architecture report exports, context pack JSON export, product-context helpers, decision memory helpers, MCP Lite manifest, verdict calibration.
+- Foundations added: graph persistence helpers, graph lens data builder, graph PR overlay, saved PR analysis overlay link, PR Inbox deep link, context freshness banners, review verdict badges, architecture report exports, context pack JSON export, risk report Markdown export, product-context helpers, decision memory helpers, MCP Lite manifest, verdict calibration.
 - Still intentionally deferred: running MCP server, backend-only private import token creation, queued webhook PR analysis, persisted Base44 entities for graph/decisions/context packs, local tree-sitter/LSP engine, and 3D/WebGL graph mode.
 
 ## Remaining implementation order
@@ -102,9 +106,8 @@ Added `src/lib/mcpLiteTools.js` with a tool manifest and config-snippet generato
 3. Add queued PR analysis from webhook deliveries without posting GitHub comments.
 4. Add read-only private repo import behind `GITHUB_PRIVATE_IMPORT_ENABLED`.
 5. Promote verdict badges into PR Inbox item cards.
-6. Extend exports to `risk-report.md`.
-7. Add Graph Lens v3 3D View after persistent graph storage is stable.
-8. Only after the product layer is stable, evaluate a bridge to a local engine or tree-sitter worker.
+6. Add Graph Lens v3 3D View after persistent graph storage is stable.
+7. Only after the product layer is stable, evaluate a bridge to a local engine or tree-sitter worker.
 
 ## Safety principles
 
