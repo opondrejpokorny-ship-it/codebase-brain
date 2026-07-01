@@ -3,13 +3,20 @@ import { Button } from "@/components/ui/button";
 import QueuedTargetsPanel from "@/components/projects/context-pack-inspector/QueuedTargetsPanel";
 import { missingContextLabel } from "@/lib/contextPackInspectorUtils";
 
+function queueItem(target = "") {
+  return { target };
+}
+
 export default function MissingContextList({
   relations = [],
+  currentMissingTargets = [],
+  queuedCurrentTargets = [],
+  queuedOtherTargets = [],
   onCopyPaths,
   copiedPaths,
   onAddToQueue,
   queued,
-  queuedTargets,
+  queuedTargets = [],
   onCopyQueue,
   copiedQueue,
   onClearQueue,
@@ -26,22 +33,44 @@ export default function MissingContextList({
         <div className="flex flex-wrap justify-end gap-1.5">
           <Button type="button" variant="outline" size="sm" onClick={onCopyPaths} className="h-7 gap-1.5 cursor-pointer text-xs bg-white/70">
             {copiedPaths ? <Check className="w-3 h-3" /> : <ClipboardCopy className="w-3 h-3" />}
-            {copiedPaths ? "Copied" : "Copy targets"}
+            {copiedPaths ? "Copied" : "Copy current targets"}
           </Button>
           {canQueue && (
             <Button type="button" variant="outline" size="sm" onClick={onAddToQueue} className="h-7 gap-1.5 cursor-pointer text-xs bg-white/70">
               {queued ? <Check className="w-3 h-3" /> : <PackageSearch className="w-3 h-3" />}
-              {queued ? "Queued" : "Add to queue"}
+              {queued ? "Current queued" : "Queue current"}
             </Button>
           )}
         </div>
       </div>
       <p className="text-xs text-amber-700 mb-2">{relations.length} missing import target(s) from changed files.</p>
-      {queuedTargets.length > 0 && <p className="text-xs text-amber-800 mb-2">{queuedTargets.length} target(s) currently queued.</p>}
-      <div className="space-y-1 max-h-36 overflow-y-auto">
+
+      <QueuedTargetsPanel
+        queue={currentMissingTargets.map(queueItem)}
+        title="Current missing targets"
+        description="Targets inferred from this diff only. Copy or queue these first."
+        showClear={false}
+      />
+
+      <div className="space-y-1 max-h-36 overflow-y-auto mt-3">
         {relations.map((relation, index) => <p key={`${relation.from_file}-${relation.import_path}-${index}`} className="text-xs text-amber-700 break-all">• {missingContextLabel(relation)}</p>)}
       </div>
-      <QueuedTargetsPanel queue={queuedTargets} onCopyQueue={onCopyQueue} copiedQueue={copiedQueue} onClearQueue={onClearQueue} />
+
+      <QueuedTargetsPanel
+        queue={queuedCurrentTargets}
+        title="Queued current targets"
+        description="Current diff targets already present in the queue."
+        showClear={false}
+      />
+
+      <QueuedTargetsPanel
+        queue={queuedOtherTargets}
+        title="Other queued targets"
+        description={queuedTargets.length ? `${queuedTargets.length} total target(s) queued across this project.` : "No other queued targets."}
+        onCopyQueue={onCopyQueue}
+        copiedQueue={copiedQueue}
+        onClearQueue={onClearQueue}
+      />
     </div>
   );
 }
