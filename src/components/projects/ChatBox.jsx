@@ -15,8 +15,9 @@ async function answerWithCoreLLM(projectId, question) {
 
   const project = projects[0];
   const relations = buildCodeRelations(files);
-  const contextPack = buildContextPack({ project, files, relations, question, maxTokens: 10000 });
-  const prompt = `You are Codebase Brain, an AI codebase analyst. Answer using only the compact context pack below.\n\nRules:\n- Be practical and specific.\n- Mention missing context when needed.\n- Do not claim tests were run.\n- Include file paths when useful.\n\nUser question:\n${question}\n\n${formatContextPackForPrompt(contextPack)}`;
+  const contextPack = buildContextPack({ files, relations, question, maxTokens: 10000 });
+  const projectSummary = project?.summary ? `\n\nProject summary:\n${project.summary}` : "";
+  const prompt = `You are Codebase Brain, an AI codebase analyst. Answer using only the compact context pack below.\n\nRules:\n- Be practical and specific.\n- Mention missing context when needed.\n- Do not claim tests were run.\n- Include file paths when useful.\n\nUser question:\n${question}${projectSummary}\n\n${formatContextPackForPrompt(contextPack)}`;
 
   const answer = await base44.integrations.Core.InvokeLLM({ prompt });
   const efficiency = contextPack.efficiency;
