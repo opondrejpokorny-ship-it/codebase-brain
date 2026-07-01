@@ -5,6 +5,7 @@ import PrivateImportReadinessCard from "@/components/projects/PrivateImportReadi
 import ContextEfficiencyCard from "@/components/projects/ContextEfficiencyCard";
 import ContextFreshnessBanner from "@/components/projects/ContextFreshnessBanner";
 import GraphSnapshotCard from "@/components/projects/GraphSnapshotCard";
+import OptionalEntitiesStatusCard from "@/components/projects/OptionalEntitiesStatusCard";
 import SmartContextActions from "@/components/projects/SmartContextActions";
 import { useProjectReadinessContext } from "@/hooks/useProjectReadinessContext";
 import { pickDefaultProjectContextFiles } from "@/lib/contextSelectionPresets";
@@ -17,6 +18,7 @@ export default function ProjectDetailWithReadiness() {
   return (
     <div className="space-y-6">
       {project && <PrivateImportReadinessCard project={project} repositoryLinks={repositoryLinks} />}
+      {project && <OptionalEntitiesStatusCard />}
       {project && <ContextFreshnessBanner project={project} files={files} />}
       {project && files.length > 0 && <GraphSnapshotCard project={project} files={files} />}
       {files.length > 0 && (
