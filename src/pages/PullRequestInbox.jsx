@@ -1,13 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { AlertTriangle, CheckCircle, Clipboard, Inbox, Loader2, Lock, MessageSquare, Network, Plus, PlayCircle, RefreshCw, RotateCcw, Save, ShieldAlert, GitPullRequestArrow, FileDiff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { base44 } from '@/api/base44Client';
 import { useToast } from '@/components/ui/use-toast';
+import { usePrInboxItems } from '@/hooks/usePrInboxItems';
 import { fetchPublicGithubPrDiffWithFallback, optionalEntity } from '@/lib/impactAnalysisRuntimeUtils';
 import { formatPrDiffForImpactAnalysis } from '@/lib/githubPrUtils';
 import { compareProjectAndPrRepository } from '@/lib/repositoryCompatibilityUtils';
-import { mergePrInboxItems, readLocalPrInbox, writeLocalPrInboxItem } from '@/lib/prInboxStorage';
+import { mergePrInboxItems, writeLocalPrInboxItem } from '@/lib/prInboxStorage';
 import { runPrInboxAnalysis } from '@/lib/prInboxAnalysisRunner';
 import { buildPrCommentDraft, hasPrCommentDraft } from '@/lib/prCommentDraftUtils';
 import { readLocalCommentApproval, summarizeCommentApprovals, writeLocalCommentApproval } from '@/lib/prCommentApprovalUtils';
@@ -66,11 +66,8 @@ function rowsForItem(item = {}, approval = null) {
 export default function PullRequestInbox() {
   const { id: projectId } = useParams();
   const { toast } = useToast();
-  const [project, setProject] = useState(null);
-  const [files, setFiles] = useState([]);
-  const [items, setItems] = useState([]);
+  const { project, files, items, setItems, loading, loadInbox } = usePrInboxItems(projectId);
   const [prUrl, setPrUrl] = useState('');
-  const [loading, setLoading] = useState(true);
   const [queueing, setQueueing] = useState(false);
   const [analyzingId, setAnalyzingId] = useState(null);
   const [draftItemId, setDraftItemId] = useState(null);
@@ -82,33 +79,6 @@ export default function PullRequestInbox() {
   const pendingCount = useMemo(() => items.filter((item) => statusLabel(item).includes('pending') || statusLabel(item).includes('mismatch')).length, [items]);
   const analyzedCount = useMemo(() => items.filter((item) => statusLabel(item).includes('analyzed')).length, [items]);
   const approvalSummary = useMemo(() => summarizeCommentApprovals(projectId, items), [projectId, items, approvalRevision]);
-
-  const loadInbox = async () => {
-    setLoading(true);
-    try {
-      const analysisEntity = optionalEntity('CodebaseAnalysis');
-      const [projects, storedFiles, remoteItems] = await Promise.all([
-        base44.entities.CodebaseProject.filter({ id: projectId }).catch(() => []),
-        base44.entities.CodeFile.filter({ project_id: projectId }, 'path', 1000).catch(() => []),
-        analysisEntity?.filter
-          ? analysisEntity.filter({ project_id: projectId }, 'created_date', 80).catch(() => [])
-          : Promise.resolve([]),
-      ]);
-      const relevantRemote = (remoteItems || [])
-        .filter((item) => item.pr_metadata || item.type === 'pr_inbox_pending' || item.type === 'public_github_pr_impact')
-        .map(normalizeInboxItem);
-      setProject(projects?.[0] || null);
-      setFiles(storedFiles || []);
-      setItems(mergePrInboxItems(relevantRemote, readLocalPrInbox(projectId)).map(normalizeInboxItem));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadInbox();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId]);
 
   const queuePr = async () => {
     if (!prUrl.trim()) {
