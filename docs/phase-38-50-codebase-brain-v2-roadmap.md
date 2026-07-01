@@ -57,6 +57,10 @@ PR Inbox now shows an `Open in Graph Lens` action for each queued/analyzed PR. T
 
 Added `src/lib/contextFreshnessUtils.js` and `src/components/projects/ContextFreshnessBanner.jsx`. The project detail page now shows whether stored context is fresh, aging, stale, empty, or missing timestamps, with file counts, latest known update age, and top context areas. This helps prevent trusting analysis built from old or incomplete stored code.
 
+### 5g. Review verdict badges in Risk Memory
+
+Added `src/components/projects/ReviewVerdictBadge.jsx` and surfaced `SAFE`, `REVIEW`, and `BLOCK` review verdicts in Risk Memory summaries and recent analysis cards. This makes the review verdict visible outside Graph Lens and prepares the same badge component for PR Inbox follow-up.
+
 ### 6. GitHub App private import
 
 The repo already has the safe GitHub App skeleton, private import readiness, repository link metadata, and dry-run installation token helper. The next production step remains backend-only non-dry-run installation token creation behind feature flags.
@@ -80,7 +84,7 @@ Added `src/lib/mcpLiteTools.js` with a tool manifest and config-snippet generato
 ## Current implementation status
 
 - Product surfaces added: Search Codebase, Architecture, Graph Lens, Decisions, MCP Setup, Risk Memory, Project Rules.
-- Foundations added: graph persistence helpers, graph lens data builder, graph PR overlay, saved PR analysis overlay link, PR Inbox deep link, context freshness banners, product-context helpers, decision memory helpers, MCP Lite manifest, verdict calibration.
+- Foundations added: graph persistence helpers, graph lens data builder, graph PR overlay, saved PR analysis overlay link, PR Inbox deep link, context freshness banners, review verdict badges, product-context helpers, decision memory helpers, MCP Lite manifest, verdict calibration.
 - Still intentionally deferred: running MCP server, backend-only private import token creation, queued webhook PR analysis, persisted Base44 entities for graph/decisions/context packs, local tree-sitter/LSP engine, and 3D/WebGL graph mode.
 
 ## Remaining implementation order
@@ -89,7 +93,7 @@ Added `src/lib/mcpLiteTools.js` with a tool manifest and config-snippet generato
 2. Wire `graphPersistenceUtils.persistGraphSnapshot()` into repository import and manual rebuild flows.
 3. Add queued PR analysis from webhook deliveries without posting GitHub comments.
 4. Add read-only private repo import behind `GITHUB_PRIVATE_IMPORT_ENABLED`.
-5. Promote verdicts into the PR Inbox and Risk Memory views.
+5. Promote verdict badges into PR Inbox item cards.
 6. Add architecture/report exports: `architecture-report.md`, `context-pack.json`, `risk-report.md`.
 7. Add Graph Lens v3 3D View after persistent graph storage is stable.
 8. Only after the product layer is stable, evaluate a bridge to a local engine or tree-sitter worker.

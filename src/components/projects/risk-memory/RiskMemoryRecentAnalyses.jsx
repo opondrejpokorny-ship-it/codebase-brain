@@ -1,4 +1,6 @@
+// @ts-nocheck
 import { Badge } from "@/components/ui/badge";
+import ReviewVerdictBadge from "@/components/projects/ReviewVerdictBadge";
 
 const riskStyles = {
   low: "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -50,6 +52,7 @@ export default function RiskMemoryRecentAnalyses({ analyses = [] }) {
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="outline" className={riskStyles[analysis.risk_level] || riskStyles.unknown}>{analysis.risk_level || "unknown"} risk</Badge>
+                  <ReviewVerdictBadge item={analysis} />
                   {contextDepth && <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">{contextDepth} context</Badge>}
                   {analysis.storage_source && <Badge variant="outline" className="bg-slate-50 text-slate-500 border-slate-200">{analysis.storage_source}</Badge>}
                 </div>

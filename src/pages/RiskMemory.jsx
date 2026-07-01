@@ -1,13 +1,25 @@
+// @ts-nocheck
+import { useMemo } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, BarChart3, Braces, FileWarning, GitBranch, History, Loader2, ShieldAlert, TestTube2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import RiskMemoryCountList from "@/components/projects/risk-memory/RiskMemoryCountList";
 import RiskMemoryRecentAnalyses from "@/components/projects/risk-memory/RiskMemoryRecentAnalyses";
 import { useRiskMemory } from "@/hooks/useRiskMemory";
+import { verdictFromPrAnalysis } from "@/lib/prAnalysisOverlayUtils";
+
+function countVerdicts(analyses = []) {
+  return analyses.reduce((acc, analysis) => {
+    const verdict = verdictFromPrAnalysis(analysis);
+    acc[verdict] = (acc[verdict] || 0) + 1;
+    return acc;
+  }, { SAFE: 0, REVIEW: 0, BLOCK: 0 });
+}
 
 export default function RiskMemory() {
   const { id } = useParams();
   const { project, analyses, memory, loading, historySource } = useRiskMemory(id);
+  const verdictCounts = useMemo(() => countVerdicts(analyses), [analyses]);
 
   if (loading) {
     return (
@@ -33,7 +45,7 @@ export default function RiskMemory() {
             </h1>
             {project?.name && <p className="text-xs text-slate-400 mt-1">Project: {project.name}</p>}
             <p className="text-sm text-slate-500 mt-1 max-w-2xl">
-              Persistent memory from previous impact analyses. It highlights repeated risk areas, high-risk files, changed symbols, common testing recommendations, and recent reports.
+              Persistent memory from previous impact analyses. It highlights repeated risk areas, high-risk files, changed symbols, common testing recommendations, review verdicts, and recent reports.
             </p>
             <p className="text-xs text-slate-400 mt-2">
               Source: {historySource}. Base44 `CodebaseAnalysis` is optional; local history keeps the feature usable before schema setup.
@@ -79,6 +91,21 @@ export default function RiskMemory() {
             <div className="bg-white rounded-xl border border-emerald-200 p-4">
               <p className="text-xs text-emerald-500 mb-1">Low risk</p>
               <p className="text-2xl font-bold text-emerald-700">{memory.riskCounts.low}</p>
+            </div>
+          </div>
+
+          <div className="grid sm:grid-cols-3 gap-3">
+            <div className="bg-white rounded-xl border border-emerald-200 p-4">
+              <p className="text-xs text-emerald-500 mb-1">SAFE verdicts</p>
+              <p className="text-2xl font-bold text-emerald-700">{verdictCounts.SAFE}</p>
+            </div>
+            <div className="bg-white rounded-xl border border-amber-200 p-4">
+              <p className="text-xs text-amber-500 mb-1">REVIEW verdicts</p>
+              <p className="text-2xl font-bold text-amber-700">{verdictCounts.REVIEW}</p>
+            </div>
+            <div className="bg-white rounded-xl border border-red-200 p-4">
+              <p className="text-xs text-red-500 mb-1">BLOCK verdicts</p>
+              <p className="text-2xl font-bold text-red-700">{verdictCounts.BLOCK}</p>
             </div>
           </div>
 
