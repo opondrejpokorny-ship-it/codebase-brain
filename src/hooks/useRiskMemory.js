@@ -7,14 +7,7 @@ import {
 } from "@/lib/analysisHistoryUtils";
 import { extractChangedFiles } from "@/lib/impactAnalysisUtils";
 import { detectChangedSymbols } from "@/lib/changedSymbolUtils";
-
-function optionalEntity(entityName) {
-  try {
-    return base44?.entities?.[entityName] || null;
-  } catch {
-    return null;
-  }
-}
+import { entitySourceLabel, safeFilterEntity } from "@/lib/optionalEntityRuntime";
 
 function backfillChangedSymbols(analyses = [], files = []) {
   if (!files.length) return analyses;
@@ -40,23 +33,21 @@ export function useRiskMemory(projectId) {
     async function loadRiskMemory() {
       setLoading(true);
       try {
-        const [projects, files] = await Promise.all([
+        const [projects, files, remoteResult] = await Promise.all([
           base44.entities.CodebaseProject.filter({ id: projectId }).catch(() => []),
           base44.entities.CodeFile.filter({ project_id: projectId }).catch(() => []),
+          safeFilterEntity("CodebaseAnalysis", { project_id: projectId }, "created_date", 80),
         ]);
 
-        const analysisEntity = optionalEntity("CodebaseAnalysis");
-        const remoteAnalyses = analysisEntity?.filter
-          ? await analysisEntity.filter({ project_id: projectId }, "created_date", 80).catch(() => [])
-          : [];
+        const remoteAnalyses = remoteResult.records || [];
         const localAnalyses = readLocalAnalysisHistory(projectId);
-        const merged = mergeAnalysisHistories(remoteAnalyses || [], localAnalyses || []);
+        const merged = mergeAnalysisHistories(remoteAnalyses, localAnalyses || []);
         const enriched = backfillChangedSymbols(merged, files || []);
 
         if (!cancelled) {
           setProject(projects?.[0] || null);
           setAnalyses(enriched);
-          setHistorySource(remoteAnalyses?.length ? "Base44 + local fallback" : "local fallback");
+          setHistorySource(entitySourceLabel({ remoteCount: remoteAnalyses.length, localCount: localAnalyses.length }));
         }
       } finally {
         if (!cancelled) setLoading(false);
