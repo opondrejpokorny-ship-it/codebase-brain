@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Activity, ArrowLeft, ArrowRight, CheckCircle, Loader2, ShieldAlert, SlidersHorizontal } from 'lucide-react';
+import { Activity, ArrowLeft, ArrowRight, CheckCircle, Loader2, ShieldAlert, SlidersHorizontal, TrendingDown, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { base44 } from '@/api/base44Client';
 import { buildWorkspaceQualityOverview } from '@/lib/workspaceQualityUtils';
 import { scoreToneClasses } from '@/lib/productQualityUtils';
 import { applyWorkspaceQualityControls, WORKSPACE_QUALITY_FILTERS, WORKSPACE_QUALITY_SORTS } from '@/lib/workspaceQualityListUtils';
+import { formatSnapshotDate, listWorkspaceQualitySnapshots, saveWorkspaceQualitySnapshot, summarizeWorkspaceQualityTrend } from '@/lib/workspaceQualityTrendUtils';
 
 function TierCard({ label, count }) {
   return (
@@ -44,11 +45,18 @@ function ProjectQualityRow({ item }) {
   );
 }
 
+function TrendBadge({ trend }) {
+  if (trend.direction === 'up') return <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700"><TrendingUp className="w-3.5 h-3.5" />{trend.label}</span>;
+  if (trend.direction === 'down') return <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700"><TrendingDown className="w-3.5 h-3.5" />{trend.label}</span>;
+  return <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">{trend.label}</span>;
+}
+
 export default function WorkspaceQuality() {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [qualityFilter, setQualityFilter] = useState('all');
   const [qualitySort, setQualitySort] = useState('quality_asc');
+  const [snapshots, setSnapshots] = useState(() => listWorkspaceQualitySnapshots());
 
   useEffect(() => {
     base44.entities.CodebaseProject.list('-created_date', 100)
@@ -57,10 +65,16 @@ export default function WorkspaceQuality() {
   }, []);
 
   const overview = useMemo(() => buildWorkspaceQualityOverview(projects), [projects]);
+  const trend = useMemo(() => summarizeWorkspaceQualityTrend(overview, snapshots), [overview, snapshots]);
   const visibleReports = useMemo(
     () => applyWorkspaceQualityControls(overview.projectReports, { filter: qualityFilter, sort: qualitySort }),
     [overview.projectReports, qualityFilter, qualitySort]
   );
+
+  function handleSaveSnapshot() {
+    saveWorkspaceQualitySnapshot(overview);
+    setSnapshots(listWorkspaceQualitySnapshots());
+  }
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /></div>;
 
@@ -90,6 +104,31 @@ export default function WorkspaceQuality() {
         </div>
       ) : (
         <>
+          <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div>
+                <h2 className="font-semibold text-slate-900 flex items-center gap-2"><TrendingUp className="w-4 h-4" /> Quality trend</h2>
+                <p className="text-sm text-slate-500 mt-1">Save local snapshots to track whether workspace quality is improving.</p>
+              </div>
+              <Button onClick={handleSaveSnapshot} className="cursor-pointer">Save snapshot</Button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <TrendBadge trend={trend} />
+              {trend.previous && <span className="text-xs text-slate-500">Last saved: {formatSnapshotDate(trend.previous.created_at)} · {trend.previous.average}% average</span>}
+            </div>
+            {snapshots.length > 0 && (
+              <div className="grid md:grid-cols-3 gap-2">
+                {snapshots.slice(0, 3).map((snapshot) => (
+                  <div key={snapshot.id} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                    <div className="text-sm font-semibold text-slate-900">{snapshot.average}% average</div>
+                    <div className="text-xs text-slate-500">{formatSnapshotDate(snapshot.created_at)}</div>
+                    <div className="text-xs text-slate-500 mt-1">{snapshot.needs_attention} projects need attention</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="grid md:grid-cols-4 gap-3">
             <TierCard label="Product-ready" count={overview.tiers['Product-ready'] || 0} />
             <TierCard label="Strong beta" count={overview.tiers['Strong beta'] || 0} />
