@@ -60,6 +60,24 @@ function nearestSymbolForLine(symbols = [], line) {
   return before.sort((a, b) => Number(b.line) - Number(a.line))[0];
 }
 
+function diffSymbolNames(diffText = "") {
+  const names = new Set();
+  const text = String(diffText || "");
+  const patterns = [
+    /\b(?:export\s+default\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/g,
+    /\b(?:export\s+)?class\s+([A-Za-z_$][\w$]*)\b/g,
+    /\b(?:export\s+)?const\s+([A-Za-z_$][\w$]*)\s*=/g,
+  ];
+
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(text))) {
+      if (match[1]) names.add(match[1]);
+    }
+  }
+  return names;
+}
+
 function uniqueSymbols(symbols = []) {
   const byKey = new Map();
   for (const symbol of symbols) {
@@ -72,6 +90,7 @@ function uniqueSymbols(symbols = []) {
 
 export function detectChangedSymbols({ files = [], changedFiles = [], diffText = "" } = {}) {
   const touchedByFile = parseTouchedLinesByFile(diffText);
+  const namesFromDiff = diffSymbolNames(diffText);
   const fileByPath = new Map(files.map((file) => [normalizePath(file.path), file]));
   const candidates = [];
 
@@ -81,6 +100,7 @@ export function detectChangedSymbols({ files = [], changedFiles = [], diffText =
     const symbols = extractSymbolsFromFile(file);
     if (!symbols.length) continue;
 
+    const startingCount = candidates.length;
     const touchedLines = [...(touchedByFile.get(path) || [])];
     if (!touchedLines.length) {
       candidates.push(...symbols.map((symbol) => ({ ...symbol, reason: "changed_file" })));
@@ -90,6 +110,10 @@ export function detectChangedSymbols({ files = [], changedFiles = [], diffText =
     for (const line of touchedLines) {
       const symbol = nearestSymbolForLine(symbols, line);
       if (symbol) candidates.push({ ...symbol, touchedLine: line, reason: "nearest_changed_line" });
+    }
+
+    if (candidates.length === startingCount && namesFromDiff.size) {
+      candidates.push(...symbols.filter((symbol) => namesFromDiff.has(symbol.name)).map((symbol) => ({ ...symbol, reason: "diff_symbol_name" })));
     }
   }
 
