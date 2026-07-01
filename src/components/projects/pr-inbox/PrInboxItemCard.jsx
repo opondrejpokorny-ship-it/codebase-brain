@@ -2,6 +2,7 @@
 import { Link } from 'react-router-dom';
 import { Network, PlayCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import ReviewVerdictBadge from '@/components/projects/ReviewVerdictBadge';
 import { prAnalysisKey } from '@/lib/prAnalysisOverlayUtils';
 
 function itemLabel(item = {}) {
@@ -35,7 +36,10 @@ export default function PrInboxItemCard({ projectId, item = {}, canAnalyze = fal
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
         <div>
           <div className="text-xs uppercase tracking-wider text-slate-400 mb-1">{itemLabel(item)}</div>
-          <h2 className="font-semibold text-slate-900">{itemTitle(item)}</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="font-semibold text-slate-900">{itemTitle(item)}</h2>
+            <ReviewVerdictBadge item={item} />
+          </div>
           <div className="text-sm text-slate-500 mt-1">
             {item.pr_metadata?.changedFilesCount || item.changed_files?.length || 0} files · +{item.pr_metadata?.additions || 0} / -{item.pr_metadata?.deletions || 0} · {itemStatus(item)}
           </div>
