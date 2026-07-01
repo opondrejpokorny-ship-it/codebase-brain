@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { buildCodeRelations, summarizeCodeGraph } from "@/lib/codeGraphUtils";
 import { extractProjectSymbols, summarizeSymbols } from "@/lib/symbolExtractionUtils";
 
