@@ -81,6 +81,16 @@ async function importPublicGithubRepository(repositoryUrl) {
   }
 }
 
+/**
+ * @param {{
+ *   repoUrl?: string;
+ *   pastedCode?: string;
+ *   projectName?: string;
+ *   importPublicRepo?: boolean;
+ *   setImportStatus?: (status: string) => void;
+ *   onUrlOnlyImport?: (() => void) | null;
+ * }} params
+ */
 export async function createRepositoryProject({ repoUrl = "", pastedCode = "", projectName = "", importPublicRepo = true, setImportStatus = () => {}, onUrlOnlyImport = null }) {
   const trimmedRepoUrl = repoUrl.trim();
   const name = projectName.trim() || extractProjectName(trimmedRepoUrl) || "Untitled Project";
