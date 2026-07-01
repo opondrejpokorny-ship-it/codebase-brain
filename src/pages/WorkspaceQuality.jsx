@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Activity, ArrowLeft, ArrowRight, CheckCircle, Loader2, ShieldAlert, SlidersHorizontal, TrendingDown, TrendingUp } from 'lucide-react';
+import { Activity, ArrowLeft, ArrowRight, CheckCircle, Download, Loader2, ShieldAlert, SlidersHorizontal, TrendingDown, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { base44 } from '@/api/base44Client';
 import { buildWorkspaceQualityOverview } from '@/lib/workspaceQualityUtils';
 import { scoreToneClasses } from '@/lib/productQualityUtils';
 import { applyWorkspaceQualityControls, WORKSPACE_QUALITY_FILTERS, WORKSPACE_QUALITY_SORTS } from '@/lib/workspaceQualityListUtils';
 import { readWorkspaceQualityPreference, writeWorkspaceQualityPreference } from '@/lib/workspaceQualityPreferenceUtils';
+import { downloadWorkspaceQualityMarkdownReport } from '@/lib/workspaceQualityReportUtils';
 import { formatSnapshotDate, listWorkspaceQualitySnapshots, saveWorkspaceQualitySnapshot, summarizeWorkspaceQualityTrend } from '@/lib/workspaceQualityTrendUtils';
 
 function TierCard({ label, count }) {
@@ -85,6 +86,10 @@ export default function WorkspaceQuality() {
     setSnapshots(listWorkspaceQualitySnapshots());
   }
 
+  function handleDownloadReport() {
+    downloadWorkspaceQualityMarkdownReport({ overview, snapshots });
+  }
+
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /></div>;
 
   return (
@@ -119,7 +124,10 @@ export default function WorkspaceQuality() {
                 <h2 className="font-semibold text-slate-900 flex items-center gap-2"><TrendingUp className="w-4 h-4" /> Quality trend</h2>
                 <p className="text-sm text-slate-500 mt-1">Save local snapshots to track whether workspace quality is improving.</p>
               </div>
-              <Button onClick={handleSaveSnapshot} className="cursor-pointer">Save snapshot</Button>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button variant="outline" onClick={handleDownloadReport} className="gap-1.5 cursor-pointer"><Download className="w-4 h-4" /> Download report</Button>
+                <Button onClick={handleSaveSnapshot} className="cursor-pointer">Save snapshot</Button>
+              </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <TrendBadge trend={trend} />
