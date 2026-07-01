@@ -8,6 +8,7 @@ import ComingNextCard from "@/components/projects/ComingNextCard";
 import WorkspaceQualityOverview from "@/components/projects/WorkspaceQualityOverview";
 import WorkspaceOnboardingChecklist from "@/components/projects/WorkspaceOnboardingChecklist";
 import { buildProductQualityReport } from "@/lib/productQualityUtils";
+import { readHomePreference, writeHomePreference } from "@/lib/homePreferenceUtils";
 
 function decoratedProject(project) {
   return { project, report: buildProductQualityReport({ project }) };
@@ -33,14 +34,22 @@ function sortProjects(items, sortMode) {
 export default function Home() {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [qualityFilter, setQualityFilter] = useState("all");
-  const [sortMode, setSortMode] = useState("created_desc");
+  const [qualityFilter, setQualityFilter] = useState(() => readHomePreference("qualityFilter", "all"));
+  const [sortMode, setSortMode] = useState(() => readHomePreference("sortMode", "created_desc"));
 
   useEffect(() => {
     base44.entities.CodebaseProject.list("-created_date", 50)
       .then(setProjects)
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    writeHomePreference("qualityFilter", qualityFilter);
+  }, [qualityFilter]);
+
+  useEffect(() => {
+    writeHomePreference("sortMode", sortMode);
+  }, [sortMode]);
 
   const visibleProjects = useMemo(() => {
     const decorated = projects.map(decoratedProject);
