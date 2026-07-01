@@ -6,6 +6,7 @@ import { base44 } from "@/api/base44Client";
 import ProjectCard from "@/components/projects/ProjectCard";
 import ComingNextCard from "@/components/projects/ComingNextCard";
 import WorkspaceQualityOverview from "@/components/projects/WorkspaceQualityOverview";
+import WorkspaceOnboardingChecklist from "@/components/projects/WorkspaceOnboardingChecklist";
 import { buildProductQualityReport } from "@/lib/productQualityUtils";
 
 function decoratedProject(project) {
@@ -174,6 +175,7 @@ export default function Home() {
 
         {/* Sidebar */}
         <div className="space-y-4">
+          {!loading && <WorkspaceOnboardingChecklist projects={projects} />}
           {!loading && <WorkspaceQualityOverview projects={projects} />}
           <h2 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Roadmap</h2>
           <ComingNextCard />
