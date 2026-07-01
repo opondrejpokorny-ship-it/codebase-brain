@@ -7,34 +7,13 @@ import ProjectCard from "@/components/projects/ProjectCard";
 import ComingNextCard from "@/components/projects/ComingNextCard";
 import WorkspaceQualityOverview from "@/components/projects/WorkspaceQualityOverview";
 import WorkspaceOnboardingChecklist from "@/components/projects/WorkspaceOnboardingChecklist";
-import { buildProductQualityReport } from "@/lib/productQualityUtils";
-
-function decoratedProject(project) {
-  return { project, report: buildProductQualityReport({ project }) };
-}
-
-function filterProjects(items, filter) {
-  if (filter === "needs_action") return items.filter((item) => item.report.overall < 70 || item.report.priorities.some((priority) => priority.severity === "high"));
-  if (filter === "product_ready") return items.filter((item) => item.report.tier.label === "Product-ready");
-  if (filter === "strong_beta") return items.filter((item) => item.report.tier.label === "Strong beta");
-  if (filter === "mvp_plus") return items.filter((item) => item.report.tier.label === "MVP+");
-  if (filter === "hardening") return items.filter((item) => item.report.tier.label === "Needs hardening");
-  return items;
-}
-
-function sortProjects(items, sortMode) {
-  const copy = [...items];
-  if (sortMode === "quality_desc") return copy.sort((a, b) => b.report.overall - a.report.overall);
-  if (sortMode === "quality_asc") return copy.sort((a, b) => a.report.overall - b.report.overall);
-  if (sortMode === "name") return copy.sort((a, b) => String(a.project.name || "").localeCompare(String(b.project.name || "")));
-  return copy.sort((a, b) => new Date(b.project.created_date || 0).getTime() - new Date(a.project.created_date || 0).getTime());
-}
+import { applyProjectQualityListControls, QUALITY_FILTERS, QUALITY_SORTS } from "@/lib/projectQualityListUtils";
 
 export default function Home() {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [qualityFilter, setQualityFilter] = useState("all");
-  const [sortMode, setSortMode] = useState("created_desc");
+  const [qualitySort, setQualitySort] = useState("created_desc");
 
   useEffect(() => {
     base44.entities.CodebaseProject.list("-created_date", 50)
@@ -42,10 +21,10 @@ export default function Home() {
       .finally(() => setLoading(false));
   }, []);
 
-  const visibleProjects = useMemo(() => {
-    const decorated = projects.map(decoratedProject);
-    return sortProjects(filterProjects(decorated, qualityFilter), sortMode).map((item) => item.project);
-  }, [projects, qualityFilter, sortMode]);
+  const visibleProjectItems = useMemo(
+    () => applyProjectQualityListControls(projects, { filter: qualityFilter, sort: qualitySort }),
+    [projects, qualityFilter, qualitySort]
+  );
 
   return (
     <div className="space-y-8">
@@ -91,35 +70,30 @@ export default function Home() {
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div>
               <h2 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Projects</h2>
-              {!loading && projects.length > 0 && <p className="text-xs text-slate-400 mt-1">Showing {visibleProjects.length} of {projects.length}</p>}
+              {!loading && projects.length > 0 && <p className="text-xs text-slate-400 mt-1">Showing {visibleProjectItems.length} of {projects.length}</p>}
             </div>
             {!loading && projects.length > 0 && (
-              <div className="flex flex-col sm:flex-row gap-2">
+              <div className="flex flex-col sm:flex-row gap-2 rounded-xl border border-slate-200 bg-white p-2">
+                <div className="flex items-center gap-1.5 px-2 text-xs font-medium text-slate-500">
+                  <SlidersHorizontal className="w-3.5 h-3.5" /> Quality controls
+                </div>
                 <label className="sr-only" htmlFor="quality-filter">Quality filter</label>
                 <select
                   id="quality-filter"
                   value={qualityFilter}
                   onChange={(event) => setQualityFilter(event.target.value)}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-slate-300"
+                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-slate-300"
                 >
-                  <option value="all">All quality tiers</option>
-                  <option value="needs_action">Needs action</option>
-                  <option value="product_ready">Product-ready</option>
-                  <option value="strong_beta">Strong beta</option>
-                  <option value="mvp_plus">MVP+</option>
-                  <option value="hardening">Needs hardening</option>
+                  {QUALITY_FILTERS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                 </select>
                 <label className="sr-only" htmlFor="quality-sort">Sort projects</label>
                 <select
                   id="quality-sort"
-                  value={sortMode}
-                  onChange={(event) => setSortMode(event.target.value)}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-slate-300"
+                  value={qualitySort}
+                  onChange={(event) => setQualitySort(event.target.value)}
+                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-slate-300"
                 >
-                  <option value="created_desc">Newest first</option>
-                  <option value="quality_asc">Lowest quality first</option>
-                  <option value="quality_desc">Highest quality first</option>
-                  <option value="name">Name A-Z</option>
+                  {QUALITY_SORTS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                 </select>
               </div>
             )}
@@ -157,17 +131,17 @@ export default function Home() {
                 </Link>
               </div>
             </div>
-          ) : visibleProjects.length === 0 ? (
+          ) : visibleProjectItems.length === 0 ? (
             <div className="bg-white rounded-xl border border-dashed border-slate-300 p-10 text-center">
               <SlidersHorizontal className="w-8 h-8 text-slate-400 mx-auto mb-3" />
-              <h3 className="font-heading font-semibold text-slate-900 mb-1">No projects match this filter</h3>
-              <p className="text-sm text-slate-500 mb-4">Try another quality tier or reset to all projects.</p>
-              <Button variant="outline" onClick={() => setQualityFilter("all")} className="cursor-pointer">Reset filter</Button>
+              <h3 className="font-heading font-semibold text-slate-900 mb-1">No projects match this quality filter</h3>
+              <p className="text-sm text-slate-500 mb-4">Try a broader filter or reset to all projects.</p>
+              <Button variant="outline" onClick={() => setQualityFilter("all")} className="cursor-pointer">Show all projects</Button>
             </div>
           ) : (
             <div className="grid sm:grid-cols-2 gap-3">
-              {visibleProjects.map((p) => (
-                <ProjectCard key={p.id} project={p} />
+              {visibleProjectItems.map((item) => (
+                <ProjectCard key={item.project.id} project={item.project} />
               ))}
             </div>
           )}
