@@ -2,16 +2,17 @@ import { buildCodeRelations, relatedPathsForChangedFiles, summarizeCodeGraph } f
 import { scoreContextFiles, resolveContextDepthPreset } from "@/lib/contextRelevanceScoring";
 import { buildContextEfficiencyReport, estimateFilesTokens, estimateTokensFromText } from "@/lib/tokenBudgetUtils";
 
-export function buildContextPack({
-  project,
-  files = [],
-  relations = null,
-  question = "",
-  changedFiles = [],
-  diffText = "",
-  maxTokens = 12000,
-  depth = "balanced",
-} = {}) {
+export function buildContextPack(input = {}) {
+  const {
+    project,
+    files = [],
+    relations = null,
+    question = "",
+    changedFiles = [],
+    diffText = "",
+    maxTokens = 12000,
+    depth = "balanced",
+  } = /** @type {any} */ (input);
   const preset = resolveContextDepthPreset(depth);
   const tokenBudget = Number(maxTokens || preset.maxTokens || 12000);
   const minPositiveFiles = Number(preset.minPositiveFiles || 4);
