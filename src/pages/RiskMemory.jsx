@@ -1,5 +1,5 @@
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, BarChart3, FileWarning, GitBranch, History, Loader2, ShieldAlert, TestTube2 } from "lucide-react";
+import { ArrowLeft, BarChart3, Braces, FileWarning, GitBranch, History, Loader2, ShieldAlert, TestTube2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import RiskMemoryCountList from "@/components/projects/risk-memory/RiskMemoryCountList";
 import RiskMemoryRecentAnalyses from "@/components/projects/risk-memory/RiskMemoryRecentAnalyses";
@@ -33,7 +33,7 @@ export default function RiskMemory() {
             </h1>
             {project?.name && <p className="text-xs text-slate-400 mt-1">Project: {project.name}</p>}
             <p className="text-sm text-slate-500 mt-1 max-w-2xl">
-              Persistent memory from previous impact analyses. It highlights repeated risk areas, high-risk files, common testing recommendations, and recent reports.
+              Persistent memory from previous impact analyses. It highlights repeated risk areas, high-risk files, changed symbols, common testing recommendations, and recent reports.
             </p>
             <p className="text-xs text-slate-400 mt-2">
               Source: {historySource}. Base44 `CodebaseAnalysis` is optional; local history keeps the feature usable before schema setup.
@@ -85,6 +85,7 @@ export default function RiskMemory() {
           <div className="grid lg:grid-cols-2 gap-4">
             <RiskMemoryCountList title="High-risk files" icon={FileWarning} items={memory.highRiskFiles} emptyText="No file has appeared in a high-risk analysis yet." />
             <RiskMemoryCountList title="Frequently changed files" icon={GitBranch} items={memory.frequentlyChangedFiles} emptyText="No changed-file history yet." />
+            <RiskMemoryCountList title="Frequently changed symbols" icon={Braces} items={memory.frequentlyChangedSymbols} emptyText="No changed-symbol history yet." />
             <RiskMemoryCountList title="Repeated risk signals" icon={BarChart3} items={memory.repeatedRiskSignals} emptyText="No repeated risk signals yet." />
             <RiskMemoryCountList title="Common recommended tests" icon={TestTube2} items={memory.commonRecommendedTests} emptyText="No recommended tests have been captured yet." />
           </div>
