@@ -16,6 +16,7 @@ import Home from '@/pages/Home';
 import AddRepository from '@/pages/AddRepository';
 import ProjectDetailWithReadiness from '@/pages/ProjectDetailWithReadiness';
 import ProductQualityDashboard from '@/pages/ProductQualityDashboard';
+import ProductHealth from '@/pages/ProductHealth';
 import WorkspaceQuality from '@/pages/WorkspaceQuality';
 import WorkspaceOptions from '@/pages/WorkspaceOptions';
 import ImpactAnalysisWithEfficiency from '@/pages/ImpactAnalysisWithEfficiency';
@@ -67,6 +68,7 @@ const AuthenticatedApp = () => {
           <Route path="/github/repositories" element={<InstalledRepositories />} />
           <Route path="/workspace/quality" element={<WorkspaceQuality />} />
           <Route path="/workspace/settings" element={<WorkspaceOptions />} />
+          <Route path="/workspace/health" element={<ProductHealth />} />
           <Route path="/project/:id" element={<ProjectDetailWithReadiness />} />
           <Route path="/project/:id/quality" element={<ProductQualityDashboard />} />
           <Route path="/project/:id/search" element={<CodeSearch />} />
