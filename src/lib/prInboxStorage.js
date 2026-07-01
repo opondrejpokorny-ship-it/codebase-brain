@@ -14,6 +14,11 @@ function entryKey(entry = {}) {
   return entry.id || `${meta.repositoryFullName || entry.repository || ''}#${meta.prNumber || entry.pr_number || ''}`;
 }
 
+function itemTime(entry = {}) {
+  const time = new Date(entry.created_date || 0).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
 export function readLocalPrInbox(projectId) {
   if (!projectId || !canStore()) return [];
   const all = safeParse(window.localStorage.getItem(STORAGE_KEY) || '{}', {});
@@ -43,5 +48,5 @@ export function mergePrInboxItems(...groups) {
     .flat()
     .filter(Boolean)
     .filter((entry, index, arr) => arr.findIndex((candidate) => entryKey(candidate) === entryKey(entry)) === index)
-    .sort((a, b) => new Date(b.created_date || 0) - new Date(a.created_date || 0));
+    .sort((a, b) => itemTime(b) - itemTime(a));
 }
