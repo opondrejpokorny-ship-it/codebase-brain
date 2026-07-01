@@ -1,5 +1,5 @@
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, FileDiff, Inbox, Loader2, Trash2 } from "lucide-react";
+import { ArrowLeft, Activity, FileDiff, Inbox, Loader2, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import ChatBox from "@/components/projects/ChatBox";
@@ -41,6 +41,7 @@ export default function ProjectDetail() {
       <div className="flex items-center justify-between">
         <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 transition-colors duration-150 cursor-pointer"><ArrowLeft className="w-3.5 h-3.5" />Dashboard</Link>
         <div className="flex items-center gap-2">
+          <Link to={`/project/${id}/quality`}><Button variant="outline" size="sm" className="cursor-pointer gap-1.5"><Activity className="w-3.5 h-3.5" />Quality</Button></Link>
           <Link to={`/project/${id}/pr-inbox`}><Button variant="outline" size="sm" className="cursor-pointer gap-1.5"><Inbox className="w-3.5 h-3.5" />PR Inbox</Button></Link>
           <Link to={`/project/${id}/impact`}><Button variant="outline" size="sm" className="cursor-pointer gap-1.5"><FileDiff className="w-3.5 h-3.5" />Impact Analysis</Button></Link>
           <AlertDialog>
