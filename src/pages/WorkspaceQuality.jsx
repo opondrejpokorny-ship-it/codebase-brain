@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Activity, ArrowLeft, ArrowRight, CheckCircle, Loader2, ShieldAlert, SlidersHorizontal } from 'lucide-react';
+import { Activity, ArrowLeft, ArrowRight, CheckCircle, Clock3, Loader2, Save, ShieldAlert, SlidersHorizontal, TrendingDown, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { base44 } from '@/api/base44Client';
 import { buildWorkspaceQualityOverview } from '@/lib/workspaceQualityUtils';
 import { scoreToneClasses } from '@/lib/productQualityUtils';
 import { applyWorkspaceQualityControls, WORKSPACE_QUALITY_FILTERS, WORKSPACE_QUALITY_SORTS } from '@/lib/workspaceQualityListUtils';
+import { compareWorkspaceQualityToSnapshot, formatSnapshotTime, readWorkspaceQualitySnapshots, saveWorkspaceQualitySnapshot } from '@/lib/workspaceQualitySnapshotUtils';
 
 function TierCard({ label, count }) {
   return (
@@ -44,11 +45,65 @@ function ProjectQualityRow({ item }) {
   );
 }
 
+function SnapshotCard({ overview, snapshots, onSave }) {
+  const latest = snapshots[0] || null;
+  const comparison = compareWorkspaceQualityToSnapshot(overview, latest);
+  const DirectionIcon = comparison.direction === 'up' ? TrendingUp : comparison.direction === 'down' ? TrendingDown : Clock3;
+  const directionClass = comparison.direction === 'up' ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : comparison.direction === 'down' ? 'text-red-700 bg-red-50 border-red-200' : 'text-slate-700 bg-slate-50 border-slate-200';
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+        <div>
+          <h2 className="font-semibold text-slate-900 flex items-center gap-2">
+            <Clock3 className="w-4 h-4" /> Quality snapshots
+          </h2>
+          <p className="text-sm text-slate-500 mt-1">Save lightweight local snapshots to compare workspace quality over time.</p>
+        </div>
+        <Button onClick={onSave} className="gap-1.5 cursor-pointer">
+          <Save className="w-4 h-4" /> Save snapshot
+        </Button>
+      </div>
+
+      <div className="grid md:grid-cols-3 gap-3">
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <div className="text-xs uppercase tracking-wider text-slate-400">Latest snapshot</div>
+          <div className="text-sm font-medium text-slate-900 mt-1">{latest ? formatSnapshotTime(latest.created_at) : 'None yet'}</div>
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <div className="text-xs uppercase tracking-wider text-slate-400">Saved average</div>
+          <div className="text-sm font-medium text-slate-900 mt-1">{latest ? `${latest.average}%` : '—'}</div>
+        </div>
+        <div className={`rounded-lg border p-3 ${directionClass}`}>
+          <div className="text-xs uppercase tracking-wider opacity-80">Change vs latest</div>
+          <div className="text-sm font-semibold mt-1 flex items-center gap-1.5">
+            <DirectionIcon className="w-4 h-4" />
+            {comparison.hasSnapshot ? `${comparison.delta > 0 ? '+' : ''}${comparison.delta} pts` : 'No baseline'}
+          </div>
+        </div>
+      </div>
+
+      {snapshots.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-xs uppercase tracking-wider text-slate-400">Recent snapshots</div>
+          {snapshots.slice(0, 5).map((snapshot) => (
+            <div key={snapshot.id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm">
+              <span className="text-slate-600">{formatSnapshotTime(snapshot.created_at)}</span>
+              <span className="font-medium text-slate-900">{snapshot.average}% · {snapshot.needs_attention} needing action</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function WorkspaceQuality() {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [qualityFilter, setQualityFilter] = useState('all');
   const [qualitySort, setQualitySort] = useState('quality_asc');
+  const [snapshots, setSnapshots] = useState(() => readWorkspaceQualitySnapshots());
 
   useEffect(() => {
     base44.entities.CodebaseProject.list('-created_date', 100)
@@ -61,6 +116,10 @@ export default function WorkspaceQuality() {
     () => applyWorkspaceQualityControls(overview.projectReports, { filter: qualityFilter, sort: qualitySort }),
     [overview.projectReports, qualityFilter, qualitySort]
   );
+
+  function handleSaveSnapshot() {
+    setSnapshots(saveWorkspaceQualitySnapshot(overview));
+  }
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /></div>;
 
@@ -90,6 +149,8 @@ export default function WorkspaceQuality() {
         </div>
       ) : (
         <>
+          <SnapshotCard overview={overview} snapshots={snapshots} onSave={handleSaveSnapshot} />
+
           <div className="grid md:grid-cols-4 gap-3">
             <TierCard label="Product-ready" count={overview.tiers['Product-ready'] || 0} />
             <TierCard label="Strong beta" count={overview.tiers['Strong beta'] || 0} />
