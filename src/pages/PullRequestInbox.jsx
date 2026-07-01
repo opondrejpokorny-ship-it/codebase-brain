@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { CheckCircle, Clipboard, Inbox, Loader2, MessageSquare, Plus, PlayCircle, RefreshCw, RotateCcw, Save, ShieldAlert, GitPullRequestArrow, FileDiff } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Clipboard, Inbox, Loader2, Lock, MessageSquare, Plus, PlayCircle, RefreshCw, RotateCcw, Save, ShieldAlert, GitPullRequestArrow, FileDiff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { base44 } from '@/api/base44Client';
 import { useToast } from '@/components/ui/use-toast';
@@ -11,6 +11,7 @@ import { mergePrInboxItems, readLocalPrInbox, writeLocalPrInboxItem } from '@/li
 import { runPrInboxAnalysis } from '@/lib/prInboxAnalysisRunner';
 import { buildPrCommentDraft, hasPrCommentDraft } from '@/lib/prCommentDraftUtils';
 import { readLocalCommentApproval, summarizeCommentApprovals, writeLocalCommentApproval } from '@/lib/prCommentApprovalUtils';
+import { buildReadinessRows, summarizeReadiness } from '@/lib/readinessPreviewUtils';
 
 function prLabel(item = {}) {
   const meta = item.pr_metadata || {};
@@ -45,6 +46,18 @@ function canAnalyze(item = {}) {
   return Boolean(item.input) && (status.includes('pending') || status.includes('mismatch') || status === 'unknown');
 }
 
+function rowsForItem(item = {}, approval = null) {
+  const meta = item.pr_metadata || {};
+  const compatibility = item.repository_compatibility || {};
+  return buildReadinessRows({
+    approved: approval?.status === 'approved' && Boolean(String(approval?.draft || '').trim()),
+    identified: Boolean(meta.repositoryFullName && meta.prNumber),
+    repositoryOk: compatibility.status !== 'mismatch',
+    finalStepAvailable: false,
+    label: meta.repositoryFullName && meta.prNumber ? `${meta.repositoryFullName}#${meta.prNumber}` : '',
+  });
+}
+
 export default function PullRequestInbox() {
   const { id: projectId } = useParams();
   const { toast } = useToast();
@@ -57,6 +70,7 @@ export default function PullRequestInbox() {
   const [analyzingId, setAnalyzingId] = useState(null);
   const [draftItemId, setDraftItemId] = useState(null);
   const [copyingDraftId, setCopyingDraftId] = useState(null);
+  const [previewItemId, setPreviewItemId] = useState(null);
   const [draftEdits, setDraftEdits] = useState({});
   const [approvalRevision, setApprovalRevision] = useState(0);
 
@@ -174,7 +188,7 @@ export default function PullRequestInbox() {
     try {
       if (!navigator.clipboard?.writeText) throw new Error('Clipboard API is not available in this browser.');
       await navigator.clipboard.writeText(draft || buildPrCommentDraft(item));
-      toast({ title: 'Comment draft copied', description: 'No GitHub write was performed.' });
+      toast({ title: 'Comment draft copied', description: 'Read-only workflow stayed unchanged.' });
     } catch (error) {
       toast({ title: 'Copy failed', description: error?.message || 'Select the draft text manually and copy it.', variant: 'destructive' });
     } finally {
@@ -191,7 +205,7 @@ export default function PullRequestInbox() {
     setApprovalRevision((value) => value + 1);
     toast({
       title: saved ? 'Comment draft approved' : 'Approval could not be saved',
-      description: saved ? 'Still not posted to GitHub.' : 'Local storage was unavailable.',
+      description: saved ? 'Saved locally.' : 'Local storage was unavailable.',
       variant: saved ? undefined : 'destructive',
     });
   };
@@ -210,7 +224,7 @@ export default function PullRequestInbox() {
             <Inbox className="w-6 h-6" /> Internal PR review queue
           </h1>
           <p className="text-slate-500 mt-1 max-w-2xl">
-            Queue and analyze public GitHub pull requests inside Codebase Brain. This page stores internal review reports and approved comment drafts only; it does not post comments, approve, merge, or change GitHub.
+            Queue and analyze public GitHub pull requests inside Codebase Brain. This page is a read-only review workspace for internal reports, local approvals, and readiness previews.
           </p>
         </div>
         <Link to={`/project/${projectId}/impact`}>
@@ -272,11 +286,14 @@ export default function PullRequestInbox() {
             const itemId = item.id || prLabel(item);
             const isAnalyzing = analyzingId === itemId;
             const draftOpen = draftItemId === itemId;
+            const previewOpen = previewItemId === itemId;
             const approval = readLocalCommentApproval(projectId, item);
             const generatedDraft = hasPrCommentDraft(item) ? buildPrCommentDraft(item) : '';
             const draftText = draftEdits[itemId] ?? approval?.draft ?? generatedDraft;
             const isCopying = copyingDraftId === itemId;
             const isApproved = approval?.status === 'approved';
+            const checks = rowsForItem(item, approval);
+            const readiness = summarizeReadiness(checks);
             return (
               <div key={itemId} className="bg-white rounded-xl border border-slate-200 p-4">
                 <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
@@ -305,6 +322,11 @@ export default function PullRequestInbox() {
                         <MessageSquare className="w-3.5 h-3.5" /> Comment approval
                       </Button>
                     )}
+                    {hasPrCommentDraft(item) && (
+                      <Button variant="outline" size="sm" onClick={() => setPreviewItemId(previewOpen ? null : itemId)} className="gap-1.5">
+                        <Lock className="w-3.5 h-3.5" /> Readiness preview
+                      </Button>
+                    )}
                     <Link to={`/project/${projectId}/impact`}><Button variant="outline" size="sm">Manual</Button></Link>
                   </div>
                 </div>
@@ -312,8 +334,8 @@ export default function PullRequestInbox() {
                   <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3 space-y-2">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                       <div>
-                        <h3 className="text-sm font-medium text-slate-800">Editable GitHub comment draft approval</h3>
-                        <p className="text-xs text-slate-500">Edit and approve the draft before any future posting step. This screen still performs no GitHub write action.</p>
+                        <h3 className="text-sm font-medium text-slate-800">Editable comment draft approval</h3>
+                        <p className="text-xs text-slate-500">Edit and approve the draft for this read-only workflow.</p>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <Button variant="outline" size="sm" onClick={() => regenerateDraft(item, itemId)} className="gap-1.5">
@@ -336,6 +358,32 @@ export default function PullRequestInbox() {
                     {approval?.updated_date && (
                       <p className="text-xs text-slate-500">Last approved draft saved at {new Date(approval.updated_date).toLocaleString()}.</p>
                     )}
+                  </div>
+                )}
+                {previewOpen && (
+                  <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-3">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                      <div>
+                        <h3 className="text-sm font-semibold text-amber-900 flex items-center gap-1.5">
+                          <AlertTriangle className="w-4 h-4" /> Guarded readiness preview
+                        </h3>
+                        <p className="text-xs text-amber-800 mt-1">This panel only explains readiness. The final step is not available in this phase.</p>
+                      </div>
+                      <Button disabled variant="outline" size="sm" className="gap-1.5 opacity-60">
+                        <Lock className="w-3.5 h-3.5" /> Preview only · {readiness.blockerCount} blocker{readiness.blockerCount === 1 ? '' : 's'}
+                      </Button>
+                    </div>
+                    <div className="grid md:grid-cols-2 gap-2">
+                      {checks.map((check) => (
+                        <div key={check.id} className="rounded-lg border border-amber-200 bg-white/70 px-3 py-2">
+                          <div className="flex items-center gap-2 text-sm font-medium text-slate-800">
+                            {check.ok ? <CheckCircle className="w-4 h-4 text-emerald-600" /> : <Lock className="w-4 h-4 text-amber-600" />}
+                            {check.label}
+                          </div>
+                          <p className="text-xs text-slate-500 mt-1">{check.detail}</p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
                 {item.result && (
