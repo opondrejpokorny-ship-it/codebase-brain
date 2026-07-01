@@ -4,6 +4,7 @@ import { ArrowLeft, Clipboard, FileText, Loader2, Plus, Trash2 } from "lucide-re
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import OptionalEntityStatusBadge from "@/components/projects/OptionalEntityStatusBadge";
 import { base44 } from "@/api/base44Client";
 import {
   addDecisionMemory,
@@ -105,6 +106,9 @@ export default function ProjectDecisions() {
               <FileText className="w-5 h-5 text-slate-500" />
               Project Decisions / ADR
             </h1>
+            <div className="mt-2">
+              <OptionalEntityStatusBadge entityName="DecisionMemory" />
+            </div>
             <p className="text-sm text-slate-500 mt-1">
               Local-first decision memory for {project?.name || "this project"}. These records can later move to a Base44 DecisionMemory entity.
             </p>
