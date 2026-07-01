@@ -34,9 +34,13 @@ function asAny(value) {
   return /** @type {any} */ (value || {});
 }
 
+function asDecision(value) {
+  return /** @type {any} */ (value || {});
+}
+
 export function readDecisionMemory(projectId) {
-  if (!canUseLocalStorage()) return [];
-  return parseJsonSafe(window.localStorage.getItem(storageKey(projectId)), []) || [];
+  if (!canUseLocalStorage()) return /** @type {any[]} */ ([]);
+  return /** @type {any[]} */ (parseJsonSafe(window.localStorage.getItem(storageKey(projectId)), []) || []);
 }
 
 export function writeDecisionMemory(projectId, decisions = []) {
@@ -58,7 +62,7 @@ export function createDecisionRecord(input = {}) {
   const tags = asArray(safeInput.tags);
   const createdAt = nowIso();
 
-  return {
+  return /** @type {any} */ ({
     id: stableId(title || decision),
     schema_version: DECISION_SCHEMA_VERSION,
     project_id: projectId || null,
@@ -72,7 +76,7 @@ export function createDecisionRecord(input = {}) {
     tags: [...new Set(tags.filter(Boolean))].slice(0, 20),
     created_date: createdAt,
     updated_date: createdAt,
-  };
+  });
 }
 
 export function addDecisionMemory(projectId, decisionInput = {}) {
@@ -86,15 +90,18 @@ export function addDecisionMemory(projectId, decisionInput = {}) {
 export function updateDecisionMemory(projectId, decisionId, patch = {}) {
   const current = readDecisionMemory(projectId);
   const safePatch = asAny(patch);
-  const next = current.map((decision) => decision.id === decisionId ? { ...decision, ...safePatch, updated_date: nowIso() } : decision);
+  const next = current.map((decision) => {
+    const safeDecision = asDecision(decision);
+    return safeDecision.id === decisionId ? { ...safeDecision, ...safePatch, updated_date: nowIso() } : safeDecision;
+  });
   writeDecisionMemory(projectId, next);
-  return next.find((decision) => decision.id === decisionId) || null;
+  return next.find((decision) => asDecision(decision).id === decisionId) || null;
 }
 
 export function decisionsForFiles(decisions = [], filePaths = []) {
   const wanted = new Set(filePaths.filter(Boolean));
   if (!wanted.size) return [];
-  return decisions.filter((decision) => (decision.files || []).some((file) => wanted.has(file)));
+  return decisions.filter((decision) => asArray(asDecision(decision).files).some((file) => wanted.has(file)));
 }
 
 export function formatDecisionMemoryForPrompt(decisions = [], options = {}) {
@@ -106,9 +113,12 @@ export function formatDecisionMemoryForPrompt(decisions = [], options = {}) {
   if (!selected.length) return "No project decisions are stored yet.";
 
   return selected.map((decision) => {
-    const files = decision.files?.length ? `\nFiles: ${decision.files.slice(0, 8).join(", ")}` : "";
-    const tags = decision.tags?.length ? `\nTags: ${decision.tags.join(", ")}` : "";
-    return `- ${decision.title} [${decision.status || "accepted"}]\nDecision: ${decision.decision}\nRationale: ${decision.rationale || "Not recorded."}${files}${tags}`;
+    const safeDecision = asDecision(decision);
+    const filesList = asArray(safeDecision.files);
+    const tagsList = asArray(safeDecision.tags);
+    const files = filesList.length ? `\nFiles: ${filesList.slice(0, 8).join(", ")}` : "";
+    const tags = tagsList.length ? `\nTags: ${tagsList.join(", ")}` : "";
+    return `- ${safeDecision.title} [${safeDecision.status || "accepted"}]\nDecision: ${safeDecision.decision}\nRationale: ${safeDecision.rationale || "Not recorded."}${files}${tags}`;
   }).join("\n");
 }
 
