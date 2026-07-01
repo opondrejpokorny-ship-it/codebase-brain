@@ -49,6 +49,10 @@ Graph Lens now has a PR overlay panel. Users can paste changed file paths or uni
 
 Graph Lens can now load overlay data directly from saved PR Inbox / `CodebaseAnalysis` records, with local-storage fallback via `prInboxStorage`. The saved PR selector reuses the stored changed files, inferred verdict, PR title, status, and URL, while still allowing manual paste override. This removes the need to copy the same diff manually after a PR was already queued or analyzed internally.
 
+### 5e. Graph Lens v2.2 PR Inbox deep link
+
+PR Inbox now shows an `Open in Graph Lens` action for each queued/analyzed PR. The link passes the stored PR analysis key through the `?pr=` URL parameter, and Graph Lens auto-selects the matching saved PR overlay after it loads local and `CodebaseAnalysis` records.
+
 ### 6. GitHub App private import
 
 The repo already has the safe GitHub App skeleton, private import readiness, repository link metadata, and dry-run installation token helper. The next production step remains backend-only non-dry-run installation token creation behind feature flags.
@@ -72,7 +76,7 @@ Added `src/lib/mcpLiteTools.js` with a tool manifest and config-snippet generato
 ## Current implementation status
 
 - Product surfaces added: Search Codebase, Architecture, Graph Lens, Decisions, MCP Setup, Risk Memory, Project Rules.
-- Foundations added: graph persistence helpers, graph lens data builder, graph PR overlay, saved PR analysis overlay link, product-context helpers, decision memory helpers, freshness helpers, MCP Lite manifest, verdict calibration.
+- Foundations added: graph persistence helpers, graph lens data builder, graph PR overlay, saved PR analysis overlay link, PR Inbox deep link, product-context helpers, decision memory helpers, freshness helpers, MCP Lite manifest, verdict calibration.
 - Still intentionally deferred: running MCP server, backend-only private import token creation, queued webhook PR analysis, persisted Base44 entities for graph/decisions/context packs, local tree-sitter/LSP engine, and 3D/WebGL graph mode.
 
 ## Remaining implementation order

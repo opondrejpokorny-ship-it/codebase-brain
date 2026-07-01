@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { AlertTriangle, CheckCircle, Clipboard, Inbox, Loader2, Lock, MessageSquare, Plus, PlayCircle, RefreshCw, RotateCcw, Save, ShieldAlert, GitPullRequestArrow, FileDiff } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Clipboard, Inbox, Loader2, Lock, MessageSquare, Network, Plus, PlayCircle, RefreshCw, RotateCcw, Save, ShieldAlert, GitPullRequestArrow, FileDiff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { base44 } from '@/api/base44Client';
 import { useToast } from '@/components/ui/use-toast';
@@ -12,6 +12,7 @@ import { runPrInboxAnalysis } from '@/lib/prInboxAnalysisRunner';
 import { buildPrCommentDraft, hasPrCommentDraft } from '@/lib/prCommentDraftUtils';
 import { readLocalCommentApproval, summarizeCommentApprovals, writeLocalCommentApproval } from '@/lib/prCommentApprovalUtils';
 import { buildReadinessRows, summarizeReadiness } from '@/lib/readinessPreviewUtils';
+import { prAnalysisKey } from '@/lib/prAnalysisOverlayUtils';
 
 function prLabel(item = {}) {
   const meta = item.pr_metadata || {};
@@ -39,6 +40,10 @@ function normalizeInboxItem(item = {}) {
     ...item,
     inbox_status: item.inbox_status || (item.risk_level === 'pending' ? 'pending_review' : item.risk_level || 'unknown'),
   };
+}
+
+function graphLensUrl(projectId, item = {}) {
+  return `/project/${projectId}/graph?pr=${encodeURIComponent(prAnalysisKey(item))}`;
 }
 
 function canAnalyze(item = {}) {
@@ -311,6 +316,7 @@ export default function PullRequestInbox() {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {itemUrl(item) && <a href={itemUrl(item)} target="_blank" rel="noreferrer"><Button variant="outline" size="sm">GitHub</Button></a>}
+                    <Link to={graphLensUrl(projectId, item)}><Button variant="outline" size="sm" className="gap-1.5"><Network className="w-3.5 h-3.5" /> Graph Lens</Button></Link>
                     {canAnalyze(item) && (
                       <Button size="sm" onClick={() => analyzeItem(item)} disabled={Boolean(analyzingId)} className="gap-1.5">
                         {isAnalyzing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <PlayCircle className="w-3.5 h-3.5" />}
