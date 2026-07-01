@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Activity, ArrowLeft, CheckCircle, FileText, GitPullRequestArrow, Loader2, ShieldCheck, SlidersHorizontal, Target } from 'lucide-react';
+import { Activity, ArrowLeft, ArrowRight, CheckCircle, FileText, GitPullRequestArrow, Loader2, ShieldCheck, SlidersHorizontal, Target, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { base44 } from '@/api/base44Client';
 import { optionalEntity } from '@/lib/impactAnalysisRuntimeUtils';
 import { buildProductQualityReport, scoreToneClasses } from '@/lib/productQualityUtils';
+import { decorateQualityPriorities, primaryQualityAction } from '@/lib/productQualityActionUtils';
 import { getProjectRulesForRuntime } from '@/lib/projectRulesUtils';
 
 function ScoreCard({ title, value, description, icon: Icon }) {
@@ -40,6 +41,12 @@ function severityClass(severity) {
   return 'bg-slate-50 text-slate-600 border-slate-200';
 }
 
+function effortClass(effort) {
+  if (effort === 'high') return 'bg-red-50 text-red-700 border-red-200';
+  if (effort === 'medium') return 'bg-blue-50 text-blue-700 border-blue-200';
+  return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+}
+
 export default function ProductQualityDashboard() {
   const { id: projectId } = useParams();
   const [project, setProject] = useState(null);
@@ -72,6 +79,8 @@ export default function ProductQualityDashboard() {
 
   const rules = useMemo(() => getProjectRulesForRuntime(projectId), [projectId]);
   const report = useMemo(() => buildProductQualityReport({ project, files, analyses, rules }), [project, files, analyses, rules]);
+  const priorities = useMemo(() => decorateQualityPriorities(report.priorities, projectId), [report.priorities, projectId]);
+  const primaryAction = useMemo(() => primaryQualityAction(report.priorities, projectId), [report.priorities, projectId]);
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /></div>;
   if (!project) return <div className="text-center py-20"><p className="text-slate-500">Project not found.</p><Link to="/" className="text-sm text-slate-900 underline mt-2 inline-block">Back to Dashboard</Link></div>;
@@ -93,6 +102,29 @@ export default function ProductQualityDashboard() {
         </div>
       </div>
 
+      {primaryAction && (
+        <div className="rounded-xl border border-slate-200 bg-white p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-lg bg-slate-900 text-white flex items-center justify-center">
+              <Zap className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-xs uppercase tracking-wider text-slate-400">Next best action</div>
+              <h2 className="font-semibold text-slate-900 mt-1">{primaryAction.title}</h2>
+              <p className="text-sm text-slate-500 mt-1">{primaryAction.description}</p>
+              <div className="flex flex-wrap gap-2 mt-2">
+                <span className={`text-xs font-medium rounded-full border px-2.5 py-1 ${severityClass(primaryAction.severity)}`}>{primaryAction.severity} priority</span>
+                <span className={`text-xs font-medium rounded-full border px-2.5 py-1 ${effortClass(primaryAction.action.effort)}`}>{primaryAction.action.effort} effort</span>
+                <span className="text-xs font-medium rounded-full border px-2.5 py-1 bg-slate-50 text-slate-600 border-slate-200">{primaryAction.action.impact}</span>
+              </div>
+            </div>
+          </div>
+          <Link to={primaryAction.action.href}>
+            <Button className="gap-1.5 cursor-pointer">{primaryAction.action.label}<ArrowRight className="w-4 h-4" /></Button>
+          </Link>
+        </div>
+      )}
+
       <div className="grid md:grid-cols-4 gap-3">
         <ScoreCard title="Import coverage" value={report.scores.importCoverage} description="How much usable source context is stored." icon={FileText} />
         <ScoreCard title="Context completeness" value={report.scores.contextCompleteness} description="Missing imports and queued context still affect grounding." icon={Target} />
@@ -104,17 +136,25 @@ export default function ProductQualityDashboard() {
         <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-5">
           <div className="flex items-center gap-2 mb-4">
             <SlidersHorizontal className="w-4 h-4 text-slate-500" />
-            <h2 className="font-semibold text-slate-900">Productization priorities</h2>
+            <h2 className="font-semibold text-slate-900">Actionable productization priorities</h2>
           </div>
           <div className="space-y-3">
-            {report.priorities.map((item) => (
+            {priorities.map((item) => (
               <div key={item.id} className="rounded-lg border border-slate-200 p-3">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
                   <div>
-                    <h3 className="font-medium text-slate-900">{item.title}</h3>
+                    <div className="text-xs uppercase tracking-wider text-slate-400">Step {item.rank}</div>
+                    <h3 className="font-medium text-slate-900 mt-1">{item.title}</h3>
                     <p className="text-sm text-slate-500 mt-1">{item.description}</p>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      <span className={`text-xs font-medium rounded-full border px-2.5 py-1 ${severityClass(item.severity)}`}>{item.severity}</span>
+                      <span className={`text-xs font-medium rounded-full border px-2.5 py-1 ${effortClass(item.action.effort)}`}>{item.action.effort} effort</span>
+                      <span className="text-xs font-medium rounded-full border px-2.5 py-1 bg-slate-50 text-slate-600 border-slate-200">{item.action.impact}</span>
+                    </div>
                   </div>
-                  <span className={`text-xs font-medium rounded-full border px-2.5 py-1 ${severityClass(item.severity)}`}>{item.severity}</span>
+                  <Link to={item.action.href}>
+                    <Button variant="outline" size="sm" className="gap-1.5 cursor-pointer">{item.action.label}<ArrowRight className="w-3.5 h-3.5" /></Button>
+                  </Link>
                 </div>
               </div>
             ))}
