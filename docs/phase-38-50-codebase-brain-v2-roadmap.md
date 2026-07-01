@@ -50,24 +50,28 @@ The repo already has deterministic search. The roadmap keeps embeddings optional
 
 ### 9. Decision Memory / ADR
 
-Added `src/lib/decisionMemoryUtils.js` for local-first decision memory, ADR-style markdown export, and prompt formatting. It can later be backed by a Base44 `DecisionMemory` entity.
+Added `src/lib/decisionMemoryUtils.js` for local-first decision memory, ADR-style markdown export, and prompt formatting. Added `src/pages/ProjectDecisions.jsx` and the `/project/:id/decisions` route so users can create, view, delete, and copy ADR markdown records from the app.
 
 ### 10. MCP Lite
 
-Added `src/lib/mcpLiteTools.js` with a tool manifest and config-snippet generator for Codex, Cursor, Claude Desktop, and generic MCP clients. This is not a running MCP server yet; it is the product contract for the future server.
+Added `src/lib/mcpLiteTools.js` with a tool manifest and config-snippet generator for Codex, Cursor, Claude Desktop, and generic MCP clients. Added `src/pages/McpSetup.jsx` and the `/project/:id/mcp` route so users can inspect the future MCP contract, copy setup snippets, and review the safety checklist. This is not a running MCP server yet; it is the product contract for the future server.
 
-## Next implementation order
+## Current implementation status
+
+- Product surfaces added: Search Codebase, Architecture, Decisions, MCP Setup, Risk Memory, Project Rules.
+- Foundations added: graph persistence helpers, product-context helpers, decision memory helpers, freshness helpers, MCP Lite manifest, verdict calibration.
+- Still intentionally deferred: running MCP server, backend-only private import token creation, queued webhook PR analysis, persisted Base44 entities for graph/decisions/context packs, and local tree-sitter/LSP engine.
+
+## Remaining implementation order
 
 1. Add optional Base44 entities: `CodeRelation`, `CodeSymbol`, `DecisionMemory`, `ContextPack`, `CodebaseAnalysis`.
 2. Wire `graphPersistenceUtils.persistGraphSnapshot()` into repository import and manual rebuild flows.
-3. Add a Project Decisions page using `decisionMemoryUtils`.
-4. Add an MCP Setup page using `mcpLiteTools`.
-5. Add context freshness banners using `freshnessUtils`.
-6. Add queued PR analysis from webhook deliveries without posting GitHub comments.
-7. Add read-only private repo import behind `GITHUB_PRIVATE_IMPORT_ENABLED`.
-8. Promote verdicts into the PR Inbox and Risk Memory views.
-9. Add architecture/report exports: `architecture-report.md`, `context-pack.json`, `risk-report.md`.
-10. Only after the product layer is stable, evaluate a bridge to a local engine or tree-sitter worker.
+3. Add context freshness banners using `freshnessUtils`.
+4. Add queued PR analysis from webhook deliveries without posting GitHub comments.
+5. Add read-only private repo import behind `GITHUB_PRIVATE_IMPORT_ENABLED`.
+6. Promote verdicts into the PR Inbox and Risk Memory views.
+7. Add architecture/report exports: `architecture-report.md`, `context-pack.json`, `risk-report.md`.
+8. Only after the product layer is stable, evaluate a bridge to a local engine or tree-sitter worker.
 
 ## Safety principles
 
