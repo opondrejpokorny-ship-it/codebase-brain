@@ -6,10 +6,17 @@ import { useToast } from '@/components/ui/use-toast';
 import { saveContextSnapshot } from '@/lib/contextSnapshotUtils';
 import { canWriteEntity } from '@/lib/optionalEntityRuntime';
 
+function sourceLabel(source = '') {
+  if (source === 'persisted_storage') return 'persisted';
+  if (source === 'local_fallback') return 'fallback';
+  return source || '';
+}
+
 export default function ContextSnapshotSaveButton({ projectId = null, contextPack = null, metadata = {}, className = '' }) {
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveSource, setSaveSource] = useState('');
   const canSave = Boolean(projectId && contextPack && canWriteEntity('ContextPack'));
 
   if (!canSave) return null;
@@ -18,10 +25,15 @@ export default function ContextSnapshotSaveButton({ projectId = null, contextPac
     if (saving) return;
     setSaving(true);
     try {
-      await saveContextSnapshot(projectId, contextPack, metadata);
+      const result = await saveContextSnapshot(projectId, contextPack, metadata);
       setSaved(true);
-      toast({ title: 'Context snapshot saved', description: 'The selected context pack was saved to optional storage.' });
+      setSaveSource(result.source || 'unknown');
+      toast({
+        title: result.persisted ? 'Context snapshot saved' : 'Context snapshot kept as fallback',
+        description: result.persisted ? 'The selected context pack was saved to optional storage.' : `Persistence source: ${sourceLabel(result.source)}.`,
+      });
     } catch (error) {
+      setSaveSource('error');
       toast({ title: 'Context snapshot not saved', description: error?.message || 'Optional storage is unavailable.', variant: 'destructive' });
     } finally {
       setSaving(false);
@@ -29,9 +41,9 @@ export default function ContextSnapshotSaveButton({ projectId = null, contextPac
   };
 
   return (
-    <Button type="button" variant="outline" size="sm" onClick={saveSnapshot} disabled={saving} className={`h-8 gap-1.5 cursor-pointer text-xs ${className}`}>
+    <Button type="button" variant="outline" size="sm" onClick={saveSnapshot} disabled={saving} className={`h-8 gap-1.5 cursor-pointer text-xs ${className}`} title={saveSource ? `Last save source: ${sourceLabel(saveSource)}` : undefined}>
       {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : saved ? <Check className="w-3.5 h-3.5" /> : <Save className="w-3.5 h-3.5" />}
-      {saved ? 'Saved' : saving ? 'Saving' : 'Save snapshot'}
+      {saved ? `Saved${sourceLabel(saveSource) ? ` · ${sourceLabel(saveSource)}` : ''}` : saving ? 'Saving' : 'Save snapshot'}
     </Button>
   );
 }
