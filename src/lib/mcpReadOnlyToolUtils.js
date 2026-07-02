@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { MCP_LITE_TOOLS } from '@/lib/mcpLiteTools';
+import { MCP_RESPONSE_EVIDENCE_FIELDS } from '@/lib/mcpResponseEvidenceUtils';
 
 export const MCP_READ_ONLY_TOOL_NAMES = [
   'search_codebase',
@@ -22,6 +23,6 @@ export function buildReadOnlyMcpToolSummary(tools = MCP_LITE_TOOLS) {
     name: tool.name,
     description: tool.description,
     inputSchema: tool.inputSchema,
-    outputEvidenceRequired: ['used_files', 'used_relations', 'missing_context', 'source_freshness'],
+    outputEvidenceRequired: MCP_RESPONSE_EVIDENCE_FIELDS,
   }));
 }
