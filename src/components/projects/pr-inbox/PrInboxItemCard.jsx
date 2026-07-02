@@ -4,6 +4,7 @@ import { Network, PlayCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ReviewVerdictBadge from '@/components/projects/ReviewVerdictBadge';
 import { prAnalysisKey } from '@/lib/prAnalysisOverlayUtils';
+import { queueStatusLabel } from '@/lib/queueStatusUtils';
 
 function itemLabel(item = {}) {
   const meta = item.pr_metadata || {};
@@ -31,6 +32,8 @@ function graphLensUrl(projectId, item = {}) {
 }
 
 export default function PrInboxItemCard({ projectId, item = {}, canAnalyze = false, onAnalyze = null, analyzing = false, extraActions = null }) {
+  const status = itemStatus(item);
+
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-4">
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
@@ -41,7 +44,7 @@ export default function PrInboxItemCard({ projectId, item = {}, canAnalyze = fal
             <ReviewVerdictBadge item={item} />
           </div>
           <div className="text-sm text-slate-500 mt-1">
-            {item.pr_metadata?.changedFilesCount || item.changed_files?.length || 0} files · +{item.pr_metadata?.additions || 0} / -{item.pr_metadata?.deletions || 0} · {itemStatus(item)}
+            {item.pr_metadata?.changedFilesCount || item.changed_files?.length || 0} files · +{item.pr_metadata?.additions || 0} / -{item.pr_metadata?.deletions || 0} · {queueStatusLabel(status)}
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
