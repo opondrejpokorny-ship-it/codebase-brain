@@ -10,6 +10,7 @@ import {
   formatMcpLiteToolsMarkdown,
   getMcpLiteToolManifest,
 } from "@/lib/mcpLiteTools";
+import { getReadOnlyMcpTools } from "@/lib/mcpReadOnlyToolUtils";
 
 function copyText(text = "") {
   if (typeof navigator !== "undefined" && navigator.clipboard) {
@@ -34,6 +35,7 @@ export default function McpSetup() {
   }, [id]);
 
   const manifest = useMemo(() => getMcpLiteToolManifest(), []);
+  const readOnlyTools = useMemo(() => getReadOnlyMcpTools(manifest.tools), [manifest]);
   const snippet = useMemo(() => buildMcpConfigSnippet({ command, projectId: id, baseUrl, target }), [command, id, baseUrl, target]);
   const toolsMarkdown = useMemo(() => formatMcpLiteToolsMarkdown(manifest.tools), [manifest]);
   const checklist = useMemo(() => buildAgentSetupChecklist(), []);
@@ -67,7 +69,10 @@ export default function McpSetup() {
               Product contract for future Codex/Cursor/Claude Code access to {project?.name || "this project"}. This page does not start a server yet.
             </p>
           </div>
-          <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200">{manifest.tools.length} tools</Badge>
+          <div className="flex flex-wrap justify-end gap-1.5">
+            <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200">{manifest.tools.length} tools</Badge>
+            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">{readOnlyTools.length} read-only first</Badge>
+          </div>
         </div>
       </div>
 
@@ -121,7 +126,12 @@ export default function McpSetup() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {manifest.tools.map((tool) => (
             <div key={tool.name} className="rounded-lg border border-slate-200 p-4">
-              <p className="font-mono text-sm font-semibold text-slate-900">{tool.name}</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="font-mono text-sm font-semibold text-slate-900">{tool.name}</p>
+                {readOnlyTools.some((readOnlyTool) => readOnlyTool.name === tool.name) && (
+                  <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">read-only v1</Badge>
+                )}
+              </div>
               <p className="text-sm text-slate-500 mt-2">{tool.description}</p>
             </div>
           ))}
