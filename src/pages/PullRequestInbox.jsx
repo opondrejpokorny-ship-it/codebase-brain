@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { AlertTriangle, CheckCircle, Clipboard, Inbox, Loader2, Lock, MessageSquare, Plus, RefreshCw, RotateCcw, Save, ShieldAlert, GitPullRequestArrow, FileDiff } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Inbox, Loader2, Lock, MessageSquare, Plus, RefreshCw, ShieldAlert, GitPullRequestArrow, FileDiff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
+import ChecksPanel from '@/components/projects/ChecksPanel';
+import PrInboxDraftPanel from '@/components/projects/pr-inbox/PrInboxDraftPanel';
 import PrInboxItemCard from '@/components/projects/pr-inbox/PrInboxItemCard';
 import { usePrInboxItems } from '@/hooks/usePrInboxItems';
 import { fetchPublicGithubPrDiffWithFallback, optionalEntity } from '@/lib/impactAnalysisRuntimeUtils';
@@ -265,56 +267,37 @@ export default function PullRequestInbox() {
                   canAnalyze={canAnalyze(item)}
                   onAnalyze={analyzeItem}
                   analyzing={isAnalyzing || Boolean(analyzingId)}
+                  extraActions={(
+                    <>
+                      {isApproved && (
+                        <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 border border-emerald-200">
+                          <CheckCircle className="w-3.5 h-3.5" /> Comment draft approved
+                        </div>
+                      )}
+                      {hasPrCommentDraft(item) && (
+                        <Button variant="outline" size="sm" onClick={() => setDraftItemId(draftOpen ? null : itemId)} className="gap-1.5">
+                          <MessageSquare className="w-3.5 h-3.5" /> Comment approval
+                        </Button>
+                      )}
+                      {hasPrCommentDraft(item) && (
+                        <Button variant="outline" size="sm" onClick={() => setPreviewItemId(previewOpen ? null : itemId)} className="gap-1.5">
+                          <Lock className="w-3.5 h-3.5" /> Readiness preview
+                        </Button>
+                      )}
+                      <Link to={`/project/${projectId}/impact`}><Button variant="outline" size="sm">Manual</Button></Link>
+                    </>
+                  )}
                 />
-                {(isApproved || hasPrCommentDraft(item)) && (
-                  <div className="bg-white rounded-xl border border-slate-200 p-3 flex flex-wrap gap-2 items-center">
-                    {isApproved && (
-                      <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 border border-emerald-200">
-                        <CheckCircle className="w-3.5 h-3.5" /> Comment draft approved
-                      </div>
-                    )}
-                    {hasPrCommentDraft(item) && (
-                      <Button variant="outline" size="sm" onClick={() => setDraftItemId(draftOpen ? null : itemId)} className="gap-1.5">
-                        <MessageSquare className="w-3.5 h-3.5" /> Comment approval
-                      </Button>
-                    )}
-                    {hasPrCommentDraft(item) && (
-                      <Button variant="outline" size="sm" onClick={() => setPreviewItemId(previewOpen ? null : itemId)} className="gap-1.5">
-                        <Lock className="w-3.5 h-3.5" /> Readiness preview
-                      </Button>
-                    )}
-                    <Link to={`/project/${projectId}/impact`}><Button variant="outline" size="sm">Manual</Button></Link>
-                  </div>
-                )}
-                {draftOpen && draftText && (
-                  <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3 space-y-2">
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-                      <div>
-                        <h3 className="text-sm font-medium text-slate-800">Editable comment draft approval</h3>
-                        <p className="text-xs text-slate-500">Edit and approve the draft for this read-only workflow.</p>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Button variant="outline" size="sm" onClick={() => regenerateDraft(item, itemId)} className="gap-1.5">
-                          <RotateCcw className="w-3.5 h-3.5" /> Regenerate
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => copyCommentDraft(item, draftText)} disabled={isCopying} className="gap-1.5">
-                          {isCopying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Clipboard className="w-3.5 h-3.5" />}
-                          Copy
-                        </Button>
-                        <Button size="sm" onClick={() => approveDraft(item, draftText)} className="gap-1.5">
-                          <Save className="w-3.5 h-3.5" /> Save approval
-                        </Button>
-                      </div>
-                    </div>
-                    <textarea
-                      value={draftText}
-                      onChange={(event) => updateDraftEdit(itemId, event.target.value)}
-                      className="w-full min-h-72 rounded-lg border border-slate-200 bg-slate-50 p-3 font-mono text-xs text-slate-700 outline-none focus:ring-2 focus:ring-slate-300"
-                    />
-                    {approval?.updated_date && (
-                      <p className="text-xs text-slate-500">Last approved draft saved at {new Date(approval.updated_date).toLocaleString()}.</p>
-                    )}
-                  </div>
+                {draftOpen && (
+                  <PrInboxDraftPanel
+                    text={draftText}
+                    savedAt={approval?.updated_date}
+                    copying={isCopying}
+                    onChange={(value) => updateDraftEdit(itemId, value)}
+                    onCopy={() => copyCommentDraft(item, draftText)}
+                    onSave={() => approveDraft(item, draftText)}
+                    onRegenerate={() => regenerateDraft(item, itemId)}
+                  />
                 )}
                 {previewOpen && (
                   <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-3">
@@ -329,17 +312,7 @@ export default function PullRequestInbox() {
                         <Lock className="w-3.5 h-3.5" /> Preview only · {readiness.blockerCount} blocker{readiness.blockerCount === 1 ? '' : 's'}
                       </Button>
                     </div>
-                    <div className="grid md:grid-cols-2 gap-2">
-                      {checks.map((check) => (
-                        <div key={check.id} className="rounded-lg border border-amber-200 bg-white/70 px-3 py-2">
-                          <div className="flex items-center gap-2 text-sm font-medium text-slate-800">
-                            {check.ok ? <CheckCircle className="w-4 h-4 text-emerald-600" /> : <Lock className="w-4 h-4 text-amber-600" />}
-                            {check.label}
-                          </div>
-                          <p className="text-xs text-slate-500 mt-1">{check.detail}</p>
-                        </div>
-                      ))}
-                    </div>
+                    <ChecksPanel checks={checks} />
                   </div>
                 )}
                 {item.result && (
