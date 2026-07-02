@@ -12,6 +12,7 @@ import {
   readDecisionMemory,
   writeDecisionMemory,
 } from "@/lib/decisionMemoryUtils";
+import { saveDecisionRecord } from "@/lib/decisionPersistenceUtils";
 
 function splitList(value = "") {
   return String(value || "")
@@ -71,6 +72,7 @@ export default function ProjectDecisions() {
       tags: splitList(form.tags),
       source: "manual",
     });
+    saveDecisionRecord(id, record).catch(() => null);
     setDecisions((current) => [record, ...current]);
     setForm(EMPTY_FORM);
   };
