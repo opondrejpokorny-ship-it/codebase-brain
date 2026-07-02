@@ -4,6 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
+import ContextSnapshotSaveButton from "@/components/projects/ContextSnapshotSaveButton";
 import CoverageCard from "@/components/projects/context-pack-inspector/CoverageCard";
 import MissingContextList from "@/components/projects/context-pack-inspector/MissingContextList";
 import RelationList from "@/components/projects/context-pack-inspector/RelationList";
@@ -271,6 +272,11 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
               <Download className="w-3.5 h-3.5" />
               Export JSON
             </Button>
+            <ContextSnapshotSaveButton
+              projectId={projectId}
+              contextPack={contextPack}
+              metadata={{ changedFiles, project: { id: projectId || project?.id || null, name: project?.name || null, repository_url: project?.repository_url || null } }}
+            />
           </div>
         </div>
       </div>
