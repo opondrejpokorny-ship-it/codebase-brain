@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, ClipboardCopy, Download, PackageSearch, TriangleAlert } from "lucide-react";
+import { Check, ClipboardCopy, Download, PackageSearch, Save, TriangleAlert } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,9 @@ import {
   uniqueMissingPathGuesses,
   uniqueRelations,
 } from "@/lib/contextPackInspectorUtils";
+import { saveContextSnapshot } from "@/lib/contextSnapshotUtils";
 import { formatMissingContextQueue, readMissingContextQueueForProject } from "@/lib/missingContextQueueUtils";
+import { canWriteEntity } from "@/lib/optionalEntityRuntime";
 import {
   addPersistentMissingContextQueueItems,
   clearPersistentMissingContextQueue,
@@ -110,6 +112,8 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
   const [resolvingCurrent, setResolvingCurrent] = useState(false);
   const [copiedQueue, setCopiedQueue] = useState(false);
   const [queued, setQueued] = useState(false);
+  const [savingSnapshot, setSavingSnapshot] = useState(false);
+  const [snapshotSaved, setSnapshotSaved] = useState(false);
   const [queuedTargets, setQueuedTargets] = useState(() => readMissingContextQueueForProject(projectId, project));
 
   useEffect(() => {
@@ -119,6 +123,8 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
     setCopiedImportInstructions(false);
     setCopiedResolvePayload(false);
     setResolvingCurrent(false);
+    setSavingSnapshot(false);
+    setSnapshotSaved(false);
   }, [projectId, project]);
 
   if (!contextPack) return null;
@@ -151,6 +157,7 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
   const queuedCurrentSet = new Set(queuedCurrentTargets.map((item) => item.target));
   const allCurrentMissingTargetsQueued = currentMissingTargets.length > 0 && currentMissingTargets.every((path) => queuedCurrentSet.has(path));
   const queueButtonActive = queued || allCurrentMissingTargetsQueued;
+  const canSaveSnapshot = Boolean(projectId) && canWriteEntity("ContextPack");
 
   const handleCopy = async () => {
     const text = buildContextPackCopyText({ contextPack, selectedFiles, directChangedRelations, selectedContextRelations, missingContextRelations, coverage, efficiency });
@@ -166,6 +173,23 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
   const handleExportJson = () => {
     const payload = buildContextPackExportPayload({ contextPack, selectedFiles, selectedRelations, changedFiles, projectId, project, coverage, efficiency, currentMissingTargets });
     downloadJsonReport(project?.name || "project", "context-pack", payload);
+  };
+
+  const handleSaveSnapshot = async () => {
+    if (!canSaveSnapshot || savingSnapshot) return;
+    setSavingSnapshot(true);
+    try {
+      await saveContextSnapshot(projectId, contextPack, {
+        changedFiles,
+        project: { id: projectId || project?.id || null, name: project?.name || null, repository_url: project?.repository_url || null },
+      });
+      setSnapshotSaved(true);
+      toast({ title: "Context snapshot saved", description: "The selected context pack was saved to optional storage." });
+    } catch (error) {
+      toast({ title: "Context snapshot not saved", description: error?.message || "Optional storage is unavailable.", variant: "destructive" });
+    } finally {
+      setSavingSnapshot(false);
+    }
   };
 
   const handleCopyMissingPaths = async () => {
@@ -271,6 +295,12 @@ export default function ContextPackInspector({ contextPack, changedFiles = [], p
               <Download className="w-3.5 h-3.5" />
               Export JSON
             </Button>
+            {canSaveSnapshot && (
+              <Button type="button" variant="outline" size="sm" onClick={handleSaveSnapshot} disabled={savingSnapshot} className="h-8 gap-1.5 cursor-pointer text-xs">
+                {snapshotSaved ? <Check className="w-3.5 h-3.5" /> : <Save className="w-3.5 h-3.5" />}
+                {snapshotSaved ? "Saved" : savingSnapshot ? "Saving" : "Save snapshot"}
+              </Button>
+            )}
           </div>
         </div>
       </div>
