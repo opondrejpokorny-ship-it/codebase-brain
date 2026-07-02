@@ -7,7 +7,7 @@ import ChecksPanel from '@/components/projects/ChecksPanel';
 import PrInboxDraftPanel from '@/components/projects/pr-inbox/PrInboxDraftPanel';
 import PrInboxItemCard from '@/components/projects/pr-inbox/PrInboxItemCard';
 import { usePrInboxItems } from '@/hooks/usePrInboxItems';
-import { fetchPublicGithubPrDiffWithFallback, optionalEntity } from '@/lib/impactAnalysisRuntimeUtils';
+import { fetchPublicGithubPrDiffWithFallback } from '@/lib/impactAnalysisRuntimeUtils';
 import { formatPrDiffForImpactAnalysis } from '@/lib/githubPrUtils';
 import { compareProjectAndPrRepository } from '@/lib/repositoryCompatibilityUtils';
 import { mergePrInboxItems, writeLocalPrInboxItem } from '@/lib/prInboxStorage';
@@ -15,6 +15,7 @@ import { runPrInboxAnalysis } from '@/lib/prInboxAnalysisRunner';
 import { buildPrCommentDraft, hasPrCommentDraft } from '@/lib/prCommentDraftUtils';
 import { readLocalCommentApproval, summarizeCommentApprovals, writeLocalCommentApproval } from '@/lib/prCommentApprovalUtils';
 import { buildReadinessRows, summarizeReadiness } from '@/lib/readinessPreviewUtils';
+import { saveQueueRecord } from '@/lib/queueRecordSaveUtils';
 
 function prLabel(item = {}) {
   const meta = item.pr_metadata || {};
@@ -111,11 +112,8 @@ export default function PullRequestInbox() {
         created_date: new Date().toISOString(),
       };
       const localSaved = writeLocalPrInboxItem(projectId, record);
-      let saved = localSaved;
-      const entity = optionalEntity('CodebaseAnalysis');
-      if (entity?.create) {
-        saved = await entity.create(record).catch(() => localSaved);
-      }
+      const saveResult = await saveQueueRecord(record).catch(() => ({ saved: localSaved }));
+      const saved = saveResult.saved || localSaved;
       setItems((prev) => mergePrInboxItems([normalizeInboxItem(saved)], prev));
       setPrUrl('');
       toast({
