@@ -4,6 +4,7 @@ import { AlertCircle, CheckCircle2, Database, Download, Loader2, Network } from 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import GraphPersistenceStatusBadges from '@/components/projects/GraphPersistenceStatusBadges';
+import GraphSnapshotSaveWarning from '@/components/projects/GraphSnapshotSaveWarning';
 import { buildGraphSnapshot, graphSnapshotToMarkdown, persistGraphSnapshot } from '@/lib/graphPersistenceUtils';
 import { canWriteEntity, optionalEntity } from '@/lib/optionalEntityRuntime';
 import { downloadJsonReport, downloadMarkdownReport } from '@/lib/reportDownloadUtils';
@@ -84,6 +85,7 @@ export default function GraphSnapshotCard({ project, files = [] }) {
         </div>
       </div>
 
+      {canPersistGraph && <GraphSnapshotSaveWarning className="mt-3" />}
       <GraphPersistResultSummary result={persistResult} />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-4">
