@@ -14,13 +14,21 @@ function stableId(parts = []) {
     .slice(0, 240);
 }
 
+export function buildCodeRelationKey(relation = {}) {
+  return stableId([relation.from_file, relation.relation_type, relation.to_file || relation.import_path]);
+}
+
+export function buildCodeSymbolKey(symbol = {}) {
+  return stableId([symbol.file_path, symbol.symbol_kind, symbol.symbol_name]);
+}
+
 function nowIso() {
   return new Date().toISOString();
 }
 
 export function buildPersistentCodeRelationRecords({ projectId = null, relations = [], createdAt = nowIso() } = {}) {
   return relations.map((relation) => ({
-    id: stableId([projectId, relation.from_file, relation.relation_type, relation.to_file || relation.import_path]),
+    id: stableId([projectId, buildCodeRelationKey(relation)]),
     project_id: projectId || relation.project_id || null,
     schema_version: GRAPH_SCHEMA_VERSION,
     from_file: relation.from_file,
@@ -32,7 +40,7 @@ export function buildPersistentCodeRelationRecords({ projectId = null, relations
     confidence: Number(relation.confidence || 0),
     source_snippet: relation.source_snippet || "",
     resolved: Boolean(relation.resolved || relation.to_file),
-    relation_key: stableId([relation.from_file, relation.relation_type, relation.to_file || relation.import_path]),
+    relation_key: buildCodeRelationKey(relation),
     created_date: relation.created_date || createdAt,
     updated_date: createdAt,
   }));
@@ -51,7 +59,7 @@ export function buildPersistentCodeSymbolRecords({ projectId = null, symbols = [
     line_end: symbol.line_end || symbol.line_start || null,
     export_type: symbol.export_type || null,
     confidence: Number(symbol.confidence || 0),
-    symbol_key: stableId([symbol.file_path, symbol.symbol_kind, symbol.symbol_name]),
+    symbol_key: buildCodeSymbolKey(symbol),
     created_date: symbol.created_date || createdAt,
     updated_date: createdAt,
   }));
